@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User } from 'lucide-react';
+import { ParticleBackground } from './ParticleBackground';
 
 interface RegisterProps {
   onNavigateToLogin: () => void;
@@ -54,6 +55,8 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#05060b] px-4 relative overflow-hidden">
+      <ParticleBackground />
+
       {/* Dynamic Animated Background Circles */}
       <div className="absolute top-10 left-10 w-[450px] h-[450px] rounded-full bg-gradient-to-tr from-indigo-600/10 to-violet-600/10 blur-[100px] animate-pulse" style={{ animationDuration: '8s' }} />
       <div className="absolute -bottom-20 -right-20 w-[550px] h-[550px] rounded-full bg-gradient-to-br from-fuchsia-600/10 to-indigo-600/10 blur-[120px] animate-pulse" style={{ animationDuration: '12s' }} />
@@ -143,7 +146,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2"
+            className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2"
           >
             {loading ? (
               <span>Creating account... 🔄</span>

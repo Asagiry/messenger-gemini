@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { User } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
+import { Avatar } from './Avatar';
 import { Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft } from 'lucide-react';
 
 interface Message {
@@ -10,6 +11,7 @@ interface Message {
   receiver_id: number;
   content: string;
   status: 'sent' | 'delivered' | 'read';
+  reactions?: any;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +21,72 @@ interface ChatWindowProps {
   typingStatus: boolean;
   onBack: () => void;
 }
+
+// ----------------------------------------------------
+// Programmatic Chime Synthesizer using Web Audio API
+// ----------------------------------------------------
+const playChimeSound = (type: 'sent' | 'received') => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'sent') {
+      osc.type = 'sine';
+      // Futuristic clean bubble pop: short, high-pitched slide up
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.08);
+    } else {
+      osc.type = 'sine';
+      // Futuristic soft double chime: chime slide down
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    }
+  } catch (e) {
+    // Fail silently to avoid interrupting UI if browser blocks autoplay
+  }
+};
+
+// ----------------------------------------------------
+// Reaction parsing helper
+// ----------------------------------------------------
+const parseReactions = (reactions: any) => {
+  if (!reactions) return [];
+  let parsed: Record<string, string> = {};
+  if (typeof reactions === 'string') {
+    try {
+      parsed = JSON.parse(reactions);
+    } catch (e) {
+      return [];
+    }
+  } else {
+    parsed = reactions;
+  }
+
+  const groups: Record<string, string[]> = {};
+  Object.entries(parsed).forEach(([username, emoji]) => {
+    if (!groups[emoji]) groups[emoji] = [];
+    groups[emoji].push(username);
+  });
+
+  return Object.entries(groups).map(([emoji, users]) => ({
+    emoji,
+    count: users.length,
+    users,
+  }));
+};
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, onBack }) => {
   const { user, token } = useAuth();
@@ -65,14 +133,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           setHasMore(false);
         }
 
-        // If it's initial load, replace messages. If we're scrolling up, prepend messages.
         if (initial) {
           setMessages(data);
           setOffset(data.length);
-          // Scroll to bottom after state update
           setTimeout(scrollToBottom, 50);
         } else {
-          // Prepend messages and maintain scroll position
           const container = containerRef.current;
           const previousScrollHeight = container?.scrollHeight || 0;
 
@@ -101,36 +166,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     setLoadingMore(false);
     fetchMessages(true);
 
-    // Send read status update via WebSocket
     sendJson({ type: 'read_messages', senderId: partner.id });
   }, [partner.id]);
 
   // 2. Subscribe to WebSocket events
   useEffect(() => {
-    // New message handler
     const unsubscribeNew = subscribe('new_message', (payload) => {
       const msg: Message = payload.message;
       if (msg.sender_id === partner.id) {
         setMessages((prev) => [...prev, msg]);
         setOffset((o) => o + 1);
         setTimeout(scrollToBottom, 50);
+        playChimeSound('received');
 
-        // Mark as read immediately since chat window is open
         sendJson({ type: 'read_messages', senderId: partner.id });
       }
     });
 
-    // Message sent confirmation handler
     const unsubscribeSentConfirm = subscribe('message_sent_confirm', (payload) => {
       const msg: Message = payload.message;
       if (msg.receiver_id === partner.id) {
         setMessages((prev) => [...prev, msg]);
         setOffset((o) => o + 1);
         setTimeout(scrollToBottom, 50);
+        playChimeSound('sent');
       }
     });
 
-    // Message edited handler
     const unsubscribeEdit = subscribe('message_edited', (payload) => {
       const edited: Message = payload.message;
       if (edited.sender_id === partner.id) {
@@ -140,7 +202,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       }
     });
 
-    // Message edited confirm handler
     const unsubscribeEditConfirm = subscribe('message_edited_confirm', (payload) => {
       const edited: Message = payload.message;
       if (edited.receiver_id === partner.id) {
@@ -151,14 +212,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       }
     });
 
-    // Message deleted handler
     const unsubscribeDelete = subscribe('message_deleted', (payload) => {
       const { messageId } = payload;
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       setOffset((o) => Math.max(0, o - 1));
     });
 
-    // Message deleted confirm handler
     const unsubscribeDeleteConfirm = subscribe('message_deleted_confirm', (payload) => {
       const { messageId } = payload;
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -166,7 +225,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       setDeleteConfirmMsgId(null);
     });
 
-    // Messages read confirm handler (partner read our messages)
     const unsubscribeRead = subscribe('messages_read', (payload) => {
       const { receiverId } = payload;
       if (receiverId === partner.id) {
@@ -174,6 +232,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           prev.map((msg) => (msg.sender_id === user?.id ? { ...msg, status: 'read' } : msg))
         );
       }
+    });
+
+    const unsubscribeReact = subscribe('message_reacted', (payload) => {
+      const { messageId, reactions } = payload;
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, reactions } : msg))
+      );
     });
 
     return () => {
@@ -184,6 +249,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       unsubscribeDelete();
       unsubscribeDeleteConfirm();
       unsubscribeRead();
+      unsubscribeReact();
     };
   }, [partner.id, user?.id]);
 
@@ -194,7 +260,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     }
   };
 
-  // Typing indicator trigger
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
 
@@ -217,7 +282,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    // Send via WebSocket
     sendJson({
       type: 'send_message',
       receiverId: partner.id,
@@ -226,12 +290,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
     setInputText('');
 
-    // Cancel typing
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     setIsTypingState(false);
     sendJson({ type: 'typing', receiverId: partner.id, isTyping: false });
+  };
+
+  const handleReactMessage = (messageId: number, emoji: string) => {
+    sendJson({
+      type: 'react_message',
+      messageId,
+      emoji,
+    });
   };
 
   const handleStartEdit = (msg: Message) => {
@@ -276,14 +347,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           </button>
           
           <div className="relative">
-            <img
-              src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-              alt={partner.nickname}
-              className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10 shadow-lg"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-              }}
-            />
+            <Avatar url={partner.avatar_url} name={partner.nickname} size="md" />
             <span
               className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0e1220] ${
                 partner.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
@@ -346,17 +410,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           return (
             <div
               key={msg.id}
-              className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'} group animate-fade-in`}
+              className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'} group animate-bubble-in`}
             >
               {!isMe && (
-                <img
-                  src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                  alt={partner.nickname}
-                  className="w-8 h-8 rounded-xl object-cover bg-slate-800 border border-white/5 shadow-md"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                  }}
-                />
+                <Avatar url={partner.avatar_url} name={partner.nickname} size="sm" />
               )}
 
               <div className="max-w-[68%] relative">
@@ -365,15 +422,39 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
                   className={`px-4.5 py-3 rounded-2xl text-[13.5px] leading-relaxed relative shadow-lg ${
                     isMe
                       ? 'bubble-sent text-white rounded-br-none'
-                      : 'bg-[#121828]/85 border border-white/5 text-slate-200 rounded-bl-none'
+                      : 'bubble-received rounded-bl-none'
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-all pr-4 font-medium">{msg.content}</p>
                   
+                  {/* Reactions list */}
+                  {msg.reactions && parseReactions(msg.reactions).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5 animate-emoji-pop justify-start select-none">
+                      {parseReactions(msg.reactions).map(({ emoji, count, users }) => {
+                        const hasReacted = users.includes(user?.nickname || '');
+                        return (
+                          <button
+                            key={emoji}
+                            onClick={() => handleReactMessage(msg.id, emoji)}
+                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 active:scale-95 ${
+                              hasReacted
+                                ? 'bg-white/20 border-white/40 text-white'
+                                : 'bg-black/25 border-white/5 text-slate-350 hover:bg-black/35'
+                            }`}
+                            title={`Reacted by: ${users.join(', ')}`}
+                          >
+                            <span>{emoji}</span>
+                            <span>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Status, Date, Edited state */}
                   <div className="flex items-center justify-end gap-1.5 mt-2 text-[9px] text-white/50 select-none font-bold">
                     {msg.updated_at !== msg.created_at && (
-                      <span className="italic opacity-80 text-[8px] bg-white/10 px-1 py-0.5 rounded">edited</span>
+                      <span className="italic opacity-85 text-[8px] bg-white/10 px-1 py-0.5 rounded">edited</span>
                     )}
                     <span>{formatTime(msg.created_at)}</span>
                     {isMe && (
@@ -390,12 +471,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
                   </div>
                 </div>
 
-                {/* Hover actions */}
+                {/* Hover actions & quick reactions */}
                 <div
-                  className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1.5 px-2 z-20 ${
+                  className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-250 flex items-center gap-2 px-2.5 z-20 ${
                     isMe ? 'right-full mr-2.5 flex-row-reverse' : 'left-full ml-2.5'
                   }`}
                 >
+                  {/* Quick Reaction Panel */}
+                  <div className="flex items-center gap-0.5 bg-[#0f1322]/90 border border-white/8 rounded-full px-2 py-0.5 shadow-2xl backdrop-blur-md animate-emoji-pop">
+                    {['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) => {
+                      const parsed = msg.reactions ? (typeof msg.reactions === 'string' ? JSON.parse(msg.reactions) : msg.reactions) : {};
+                      const active = parsed[user?.nickname || ''] === emoji;
+                      return (
+                        <button
+                          key={emoji}
+                          onClick={() => handleReactMessage(msg.id, emoji)}
+                          className={`hover:scale-130 active:scale-90 transition-transform p-1 text-xs select-none duration-150 ${
+                            active ? 'bg-white/10 rounded-full' : ''
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   {isMe && (
                     <button
                       onClick={() => handleStartEdit(msg)}
@@ -419,7 +519,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               {/* Message delete confirmation dialog */}
               {deleteConfirmMsgId === msg.id && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-                  <div className="w-full max-w-sm bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-scale-up">
+                  <div className="w-full max-w-sm bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-slide-up">
                     <h4 className="text-sm font-extrabold text-white mb-2 flex items-center gap-2">
                       <span>Delete message?</span>
                       <span>🗑️</span>
@@ -461,14 +561,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
         {/* Typing indicator */}
         {typingStatus && (
           <div className="flex items-end gap-2.5 justify-start animate-pulse">
-            <img
-              src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-              alt={partner.nickname}
-              className="w-8 h-8 rounded-xl object-cover bg-slate-800 border border-white/5"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-              }}
-            />
+            <Avatar url={partner.avatar_url} name={partner.nickname} size="sm" />
             <div className="px-4 py-2.5 bg-[#121828]/80 border border-white/5 text-slate-400 rounded-2xl rounded-bl-none text-xs flex items-center gap-1.5 font-bold shadow-md">
               <span>{partner.nickname} is writing</span>
               <span className="flex gap-0.5 items-center justify-center mt-1">
@@ -516,6 +609,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
       {/* Input container */}
       <div className="p-4 bg-[#0d111c]/60 border-t border-white/5 backdrop-blur-md relative z-10">
+        {/* Quick Emoji Bar Toolbar */}
+        <div className="max-w-4xl mx-auto mb-2.5 flex items-center gap-1.5 overflow-x-auto py-1.5 select-none no-scrollbar">
+          {['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '💡', '🚀', '🔮', '✨', '🦄', '👋', '💬', '💖'].map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => setInputText((prev) => prev + emoji)}
+              className="w-8.5 h-8.5 flex-shrink-0 flex items-center justify-center rounded-xl bg-white/2 hover:bg-white/10 border border-white/5 text-sm transition-all active:scale-90 hover:scale-110 shadow-sm"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-2">
           <div className="relative flex-1">
             <input
@@ -528,7 +635,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-500">
               <button
                 type="button"
-                className="p-1 hover:text-slate-350 transition-colors"
+                className="p-1 hover:text-slate-300 transition-colors"
                 title="Add emoji"
                 onClick={() => setInputText(prev => prev + '✨')}
               >

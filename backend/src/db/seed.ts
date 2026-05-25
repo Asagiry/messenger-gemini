@@ -14,6 +14,11 @@ async function runMigrationAndSeed() {
     await pool.query(schemaSql);
     console.log('Schema tables created successfully.');
 
+    // Ensure reactions column exists if the table was created in an older run
+    await pool.query(`
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb;
+    `);
+
     // 2. Check if users already exist
     const { rows: existingUsers } = await pool.query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(existingUsers[0].count, 10);

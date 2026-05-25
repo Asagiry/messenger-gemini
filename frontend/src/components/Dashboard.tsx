@@ -4,6 +4,8 @@ import type { User } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { ChatWindow } from './ChatWindow';
 import { UserProfile } from './UserProfile';
+import { Avatar } from './Avatar';
+import { ParticleBackground } from './ParticleBackground';
 import { 
   LogOut, 
   Settings, 
@@ -300,14 +302,7 @@ export const Dashboard: React.FC = () => {
         {/* User bar */}
         <div className="px-6 py-5 bg-[#0b0e17] border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src={user?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-              alt={user?.nickname}
-              className="w-11 h-11 rounded-2xl object-cover bg-slate-800 border border-white/10 shadow-lg"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-              }}
-            />
+            <Avatar url={user?.avatar_url} name={user?.nickname || 'User'} size="lg" className="rounded-2xl" />
             <div>
               <h4 className="font-extrabold text-sm text-white tracking-wide leading-tight">{user?.nickname}</h4>
               <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
@@ -388,14 +383,7 @@ export const Dashboard: React.FC = () => {
                     className="w-full flex items-center gap-3.5 p-3 hover:bg-white/5 rounded-2xl text-left border border-transparent transition-all active:scale-[0.99]"
                   >
                     <div className="relative">
-                      <img
-                        src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                        alt={u.nickname}
-                        className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                        }}
-                      />
+                      <Avatar url={u.avatar_url} name={u.nickname} size="md" />
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
                           u.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
@@ -428,14 +416,7 @@ export const Dashboard: React.FC = () => {
                     className="w-full flex items-center gap-3.5 p-3 hover:bg-white/5 rounded-2xl text-left border border-transparent transition-all active:scale-[0.99]"
                   >
                     <div className="relative">
-                      <img
-                        src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                        alt={u.nickname}
-                        className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                        }}
-                      />
+                      <Avatar url={u.avatar_url} name={u.nickname} size="md" />
                       <span
                         className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
                           u.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
@@ -495,14 +476,7 @@ export const Dashboard: React.FC = () => {
                       className={`w-full flex items-center gap-3.5 p-3 rounded-2xl text-left border transition-all active:scale-[0.99] ${activeClass}`}
                     >
                       <div className="relative flex-shrink-0">
-                        <img
-                          src={c.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                          alt={c.nickname}
-                          className="w-11 h-11 rounded-xl object-cover bg-slate-850 border border-white/5"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                          }}
-                        />
+                        <Avatar url={c.avatar_url} name={c.nickname} size="lg" />
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
                             c.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
@@ -558,6 +532,7 @@ export const Dashboard: React.FC = () => {
           />
         ) : (
           <div className="hidden md:flex flex-col items-center justify-center h-full text-center p-8 bg-[#05060b]/20 relative overflow-hidden">
+            <ParticleBackground />
             {/* Background Blur Spheres */}
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
             

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, User, Image, FileText, Lock, Check } from 'lucide-react';
+import { Avatar, PRESET_AVATARS } from './Avatar';
 
 interface UserProfileProps {
   onClose: () => void;
@@ -91,17 +92,33 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
 
           {/* Profile Picture Preview */}
           <div className="flex items-center gap-4 bg-white/2 p-4 rounded-2xl border border-white/5 shadow-inner">
-            <img
-              src={avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-              alt={nickname}
-              className="w-16 h-16 rounded-[20px] object-cover bg-slate-800 border border-white/10 shadow-lg shadow-black/30"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-              }}
-            />
+            <Avatar url={avatarUrl} name={nickname} size="xl" />
             <div>
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Avatar Preview</h4>
               <p className="text-[10px] text-slate-500 mt-1 font-medium">Changes apply immediately on saving</p>
+            </div>
+          </div>
+
+          {/* Preset Avatar Picker Grid */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+              Choose a Preset Avatar 🦄
+            </label>
+            <div className="grid grid-cols-5 gap-2.5 p-3.5 bg-white/2 border border-white/5 rounded-2xl">
+              {Object.entries(PRESET_AVATARS).map(([key, preset]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAvatarUrl(key)}
+                  className={`flex items-center justify-center p-2 rounded-xl bg-gradient-to-tr ${preset.gradient} border text-xl transition-all active:scale-90 hover:brightness-110 shadow-md ${
+                    avatarUrl === key 
+                      ? 'border-white scale-105 ring-2 ring-indigo-500/40' 
+                      : 'border-transparent opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  {preset.emoji}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS messages (
   status VARCHAR(20) DEFAULT 'sent', -- 'sent', 'delivered', 'read'
   deleted_for_sender BOOLEAN DEFAULT FALSE,
   deleted_for_receiver BOOLEAN DEFAULT FALSE,
+  reactions JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

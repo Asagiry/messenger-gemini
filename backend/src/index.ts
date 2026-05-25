@@ -333,7 +333,7 @@ app.get('/api/chats/:partnerId/messages', authenticateToken, async (req: Authent
 
   try {
     const messagesRes = await pool.query(
-      `SELECT id, sender_id, receiver_id, content, status, created_at, updated_at
+      `SELECT id, sender_id, receiver_id, content, status, reactions, created_at, updated_at
        FROM messages
        WHERE (
          (sender_id = $1 AND receiver_id = $2 AND deleted_for_sender = FALSE)
@@ -412,7 +412,7 @@ wss.on('connection', async (ws: WebSocket, userId: number) => {
           const msgRes = await pool.query(
             `INSERT INTO messages (sender_id, receiver_id, content, status)
              VALUES ($1, $2, $3, $4)
-             RETURNING id, sender_id, receiver_id, content, status, created_at, updated_at`,
+             RETURNING id, sender_id, receiver_id, content, status, reactions, created_at, updated_at`,
             [userId, receiverId, content, initialStatus]
           );
 
@@ -479,7 +479,7 @@ wss.on('connection', async (ws: WebSocket, userId: number) => {
             `UPDATE messages 
              SET content = $1, updated_at = CURRENT_TIMESTAMP 
              WHERE id = $2 AND sender_id = $3
-             RETURNING id, sender_id, receiver_id, content, status, created_at, updated_at`,
+             RETURNING id, sender_id, receiver_id, content, status, reactions, created_at, updated_at`,
             [content, messageId, userId]
           );
 
@@ -543,6 +543,68 @@ wss.on('connection', async (ws: WebSocket, userId: number) => {
 
             // Confirm to sender
             ws.send(JSON.stringify({ type: 'message_deleted_confirm', messageId, mode: 'me' }));
+          }
+          break;
+        }
+
+        case 'react_message': {
+          const { messageId, emoji } = payload;
+          if (!messageId) return;
+
+          // Get sender nickname to key the reaction
+          const userRes = await pool.query('SELECT nickname FROM users WHERE id = $1', [userId]);
+          if (userRes.rows.length === 0) return;
+          const userNickname = userRes.rows[0].nickname;
+
+          // Find message to verify access and get receiver
+          const findMsgRes = await pool.query(
+            'SELECT id, sender_id, receiver_id, reactions FROM messages WHERE id = $1',
+            [messageId]
+          );
+          if (findMsgRes.rows.length === 0) return;
+          const msg = findMsgRes.rows[0];
+
+          // Check if user is either sender or receiver of the message
+          if (msg.sender_id !== userId && msg.receiver_id !== userId) return;
+
+          // Update reactions object
+          let currentReactions = msg.reactions || {};
+          if (typeof currentReactions === 'string') {
+            try {
+              currentReactions = JSON.parse(currentReactions);
+            } catch (e) {
+              currentReactions = {};
+            }
+          }
+
+          if (currentReactions[userNickname] === emoji) {
+            // Toggle off if same reaction clicked
+            delete currentReactions[userNickname];
+          } else {
+            // Set or update reaction
+            currentReactions[userNickname] = emoji;
+          }
+
+          // Save back to DB
+          await pool.query(
+            'UPDATE messages SET reactions = $1 WHERE id = $2',
+            [JSON.stringify(currentReactions), messageId]
+          );
+
+          const broadcastPayload = JSON.stringify({
+            type: 'message_reacted',
+            messageId,
+            reactions: currentReactions
+          });
+
+          // Send update to sender
+          ws.send(broadcastPayload);
+
+          // Send update to partner if online
+          const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+          const partnerSocket = activeConnections.get(partnerId);
+          if (partnerSocket && partnerSocket.readyState === WebSocket.OPEN) {
+            partnerSocket.send(broadcastPayload);
           }
           break;
         }
