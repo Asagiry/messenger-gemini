@@ -1,0 +1,21 @@
+{
+  "name": "messenger",
+  "version": "1.0.0",
+  "description": "This document outlines the strict technical specifications and requirements for developing and deploying the Minimum Viable Product (MVP) of the Web Messenger.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Asagiry/messenger-gemini.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Asagiry/messenger-gemini/issues"
+  },
+  "homepage": "https://github.com/Asagiry/messenger-gemini#readme"
+}
