@@ -6,12 +6,14 @@ import { ChatWindow } from './ChatWindow';
 import { UserProfile } from './UserProfile';
 import { Avatar } from './Avatar';
 import { ParticleBackground } from './ParticleBackground';
+import { usePreferences } from '../context/PreferencesContext';
 import { 
   LogOut, 
   Settings, 
   Search, 
   Users, 
-  MessageSquare
+  MessageSquare,
+  Pin
 } from 'lucide-react';
 
 interface Chat {
@@ -30,6 +32,7 @@ interface Chat {
 export const Dashboard: React.FC = () => {
   const { user, token, logout } = useAuth();
   const { subscribe } = useWebSocket();
+  const { t, lang } = usePreferences();
 
   const [activePartner, setActivePartner] = useState<User | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -41,6 +44,77 @@ export const Dashboard: React.FC = () => {
 
   // Map of partnerId -> typing boolean
   const [typingStates, setTypingStates] = useState<{ [id: number]: boolean }>({});
+
+  // Folders and pinned chats
+  const [activeFolder, setActiveFolder] = useState<'all' | 'personal' | 'saved' | 'online'>('all');
+  const [pinnedChats, setPinnedChats] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      const saved = localStorage.getItem(`pinned_chats_${user.id}`);
+      if (saved) {
+        try {
+          setPinnedChats(JSON.parse(saved));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [user?.id]);
+
+  const togglePinChat = (partnerId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+    setPinnedChats((prev) => {
+      const next = prev.includes(partnerId)
+        ? prev.filter((id) => id !== partnerId)
+        : [...prev, partnerId];
+      localStorage.setItem(`pinned_chats_${user.id}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const selfChat = chats.find((c) => c.partner_id === user?.id);
+  const allChatsWithSaved = [
+    {
+      partner_id: user?.id || 0,
+      nickname: t.savedMessages,
+      avatar_url: 'avatar:saved',
+      presence_status: 'online',
+      last_seen: null,
+      last_message_content: selfChat ? selfChat.last_message_content : t.savedMessagesSub,
+      last_message_sender_id: selfChat ? selfChat.last_message_sender_id : null,
+      last_message_status: selfChat ? selfChat.last_message_status : null,
+      last_message_time: selfChat ? selfChat.last_message_time : null,
+      unread_count: 0
+    },
+    ...chats.filter((c) => c.partner_id !== user?.id)
+  ];
+
+  const filteredChats = allChatsWithSaved.filter((c) => {
+    if (activeFolder === 'personal') {
+      return c.partner_id !== user?.id;
+    }
+    if (activeFolder === 'saved') {
+      return c.partner_id === user?.id;
+    }
+    if (activeFolder === 'online') {
+      return c.presence_status === 'online' && c.partner_id !== user?.id;
+    }
+    return true;
+  });
+
+  const sortedChats = [...filteredChats].sort((a, b) => {
+    const aPinned = pinnedChats.includes(a.partner_id);
+    const bPinned = pinnedChats.includes(b.partner_id);
+    
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    
+    const aTime = a.last_message_time ? new Date(a.last_message_time).getTime() : 0;
+    const bTime = b.last_message_time ? new Date(b.last_message_time).getTime() : 0;
+    return bTime - aTime;
+  });
 
   // 1. Fetch active chats list
   const fetchChats = async () => {
@@ -306,7 +380,7 @@ export const Dashboard: React.FC = () => {
             <div>
               <h4 className="font-extrabold text-sm text-white tracking-wide leading-tight">{user?.nickname}</h4>
               <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
-                Active 👋
+                {t.statusActive}
               </p>
             </div>
           </div>
@@ -314,15 +388,15 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsProfileOpen(true)}
-              className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
-              title="Edit Profile"
+              className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all cursor-pointer"
+              title={t.editProfile}
             >
               <Settings className="w-4 h-4" />
             </button>
             <button
               onClick={logout}
-              className="p-2.5 text-slate-400 hover:text-rose-455 hover:bg-rose-500/10 rounded-xl transition-all"
-              title="Logout"
+              className="p-2.5 text-slate-400 hover:text-rose-455 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+              title={t.logout}
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -339,11 +413,36 @@ export const Dashboard: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users... 🔎"
-              className="w-full glass-input rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-xs font-medium"
+              placeholder={t.searchPlaceholder}
+              className="w-full glass-input rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-xs font-medium"
             />
           </div>
         </div>
+
+        {/* Folders Tab bar */}
+        {!showDirectory && !searchQuery.trim() && (
+          <div className="px-4 py-2 border-b border-white/2 flex gap-1.5 overflow-x-auto scrollbar-none">
+            {[
+              { id: 'all', label: t.folderAll, icon: '💬' },
+              { id: 'personal', label: t.folderPersonal, icon: '👤' },
+              { id: 'saved', label: t.folderSaved, icon: '📁' },
+              { id: 'online', label: t.folderOnline, icon: '🟢' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveFolder(tab.id as any)}
+                className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1 active:scale-[0.96] cursor-pointer ${
+                  activeFolder === tab.id
+                    ? 'bg-indigo-650/20 text-indigo-300 border border-indigo-500/20 shadow-md shadow-indigo-650/5'
+                    : 'bg-white/2 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Directory Toggle Button */}
         <div className="px-4 py-2.5 border-b border-white/2 flex gap-2">
@@ -352,14 +451,14 @@ export const Dashboard: React.FC = () => {
               setShowDirectory(!showDirectory);
               setSearchQuery('');
             }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all active:scale-[0.98] ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all active:scale-[0.98] cursor-pointer ${
               showDirectory 
-                ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-400 shadow-md shadow-indigo-650/5' 
+                ? 'bg-indigo-650/10 border-indigo-500/30 text-indigo-400 shadow-md shadow-indigo-650/5' 
                 : 'bg-white/2 border-white/5 text-slate-450 hover:text-white hover:bg-white/5'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>{showDirectory ? 'Show Active Chats' : 'Show User Directory'}</span>
+            <span>{showDirectory ? t.showActiveChats : t.showUserDirectory}</span>
           </button>
         </div>
 
@@ -369,7 +468,7 @@ export const Dashboard: React.FC = () => {
             // SEARCH RESULTS
             <div className="space-y-1">
               <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Search Results ({searchResults.length})
+                {t.searchResults} ({searchResults.length})
               </h5>
               {searchResults.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-500 font-medium">
@@ -402,7 +501,7 @@ export const Dashboard: React.FC = () => {
             // USER DIRECTORY
             <div className="space-y-1">
               <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                User Directory ({directory.length})
+                {t.userDirectory} ({directory.length})
               </h5>
               {directory.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-500 font-medium">
@@ -436,84 +535,102 @@ export const Dashboard: React.FC = () => {
               )}
             </div>
           ) : (
-            // ACTIVE CHATS LIST
             <div className="space-y-1">
               <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Recent Chats ({chats.length})
+                {activeFolder === 'all' && t.activeChats}
+                {activeFolder === 'personal' && t.folderPersonal}
+                {activeFolder === 'saved' && t.folderSaved}
+                {activeFolder === 'online' && t.folderOnline} ({sortedChats.length})
               </h5>
-              {chats.length === 0 ? (
+              {sortedChats.length === 0 ? (
                 <div className="h-44 flex flex-col items-center justify-center p-6 text-center">
                   <div className="p-3 bg-white/2 rounded-full border border-white/5 text-slate-500 mb-3">
                     <MessageSquare className="w-5 h-5" />
                   </div>
-                  <p className="text-xs text-slate-405 font-bold">No active chats 💬</p>
-                  <button
-                    onClick={() => setShowDirectory(true)}
-                    className="text-xs text-indigo-400 hover:underline mt-2 font-bold flex items-center gap-1.5"
-                  >
-                    Browse Directory ✨
-                  </button>
+                  <p className="text-xs text-slate-405 font-bold">{t.noActiveChats}</p>
+                  {activeFolder !== 'saved' && (
+                    <button
+                      onClick={() => setShowDirectory(true)}
+                      className="text-xs text-indigo-400 hover:underline mt-2 font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {t.browseDirectory}
+                    </button>
+                  )}
                 </div>
               ) : (
-                chats.map((c) => {
+                sortedChats.map((c) => {
                   const isTyping = typingStates[c.partner_id];
+                  const isPinned = pinnedChats.includes(c.partner_id);
                   const activeClass = activePartner?.id === c.partner_id 
                     ? 'bg-gradient-to-r from-indigo-650/20 to-purple-650/15 border-indigo-500/25 text-white shadow-xl shadow-indigo-600/5' 
                     : 'glass-card text-slate-300';
                   
                   return (
-                    <button
-                      key={c.partner_id}
-                      onClick={() =>
-                        handleSelectPartner({
-                          id: c.partner_id,
-                          nickname: c.nickname,
-                          avatar_url: c.avatar_url,
-                          presence_status: c.presence_status,
-                          last_seen: c.last_seen || undefined,
-                        })
-                      }
-                      className={`w-full flex items-center gap-3.5 p-3 rounded-2xl text-left border transition-all active:scale-[0.99] ${activeClass}`}
-                    >
-                      <div className="relative flex-shrink-0">
-                        <Avatar url={c.avatar_url} name={c.nickname} size="lg" />
-                        <span
-                          className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
-                            c.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
-                          }`}
-                        />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-extrabold text-sm text-white truncate leading-tight tracking-wide">{c.nickname}</h4>
-                          <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
-                            {formatLastMessageTime(c.last_message_time)}
-                          </span>
+                    <div key={c.partner_id} className="relative group/item">
+                      <button
+                        onClick={() =>
+                          handleSelectPartner({
+                            id: c.partner_id,
+                            nickname: c.nickname,
+                            avatar_url: c.avatar_url,
+                            presence_status: c.presence_status,
+                            last_seen: c.last_seen || undefined,
+                          })
+                        }
+                        className={`w-full flex items-center gap-3.5 p-3 rounded-2xl text-left border transition-all active:scale-[0.99] cursor-pointer pr-10 ${activeClass}`}
+                      >
+                        <div className="relative flex-shrink-0">
+                          <Avatar url={c.avatar_url} name={c.nickname} size="lg" />
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
+                              c.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
+                            }`}
+                          />
                         </div>
 
-                        <div className="flex items-center justify-between mt-1.5">
-                          {isTyping ? (
-                            <span className="text-xs text-indigo-400 font-extrabold animate-pulse flex items-center gap-1">
-                              typing... <span className="text-[10px]">✍️</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 min-w-0 flex-1">
+                              <h4 className="font-extrabold text-sm text-white truncate leading-tight tracking-wide">{c.nickname}</h4>
+                              {isPinned && <Pin className="w-3 h-3 text-indigo-450 flex-shrink-0 rotate-45" />}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
+                              {formatLastMessageTime(c.last_message_time)}
                             </span>
-                          ) : (
-                            <p className="text-xs text-slate-400 truncate flex-1 pr-2 font-medium">
-                              {c.last_message_sender_id === user?.id && (
-                                <span className="text-slate-550 mr-1 font-bold">You:</span>
-                              )}
-                              {c.last_message_content}
-                            </p>
-                          )}
+                          </div>
 
-                          {c.unread_count > 0 && (
-                            <span className="bg-gradient-to-r from-indigo-500 to-purple-650 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center justify-center min-w-4.5 h-4.5 shadow-lg shadow-indigo-600/20">
-                              {c.unread_count}
-                            </span>
-                          )}
+                          <div className="flex items-center justify-between mt-1.5">
+                            {isTyping ? (
+                              <span className="text-xs text-indigo-400 font-extrabold animate-pulse flex items-center gap-1">
+                                {t.writing}... <span className="text-[10px]">✍️</span>
+                              </span>
+                            ) : (
+                              <p className="text-xs text-slate-405 truncate flex-1 pr-2 font-medium">
+                                {c.last_message_sender_id === user?.id && (
+                                  <span className="text-slate-550 mr-1 font-bold">{lang === 'ru' ? 'Вы:' : 'You:'}</span>
+                                )}
+                                {c.last_message_content}
+                              </p>
+                            )}
+
+                            {c.unread_count > 0 && (
+                              <span className="bg-gradient-to-r from-indigo-500 to-purple-650 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center justify-center min-w-4.5 h-4.5 shadow-lg shadow-indigo-600/20">
+                                {c.unread_count}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+
+                      {/* Pin/Unpin trigger on hover */}
+                      <button
+                        onClick={(e) => togglePinChat(c.partner_id, e)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-[#111524]/90 border border-white/5 text-slate-450 hover:text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all hover:scale-110 active:scale-95 shadow-md cursor-pointer z-10"
+                        title={isPinned ? t.unpinChat : t.pinChat}
+                      >
+                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-indigo-400 text-indigo-400 rotate-0' : 'text-slate-450 rotate-45'}`} />
+                      </button>
+                    </div>
                   );
                 })
               )}
@@ -540,10 +657,10 @@ export const Dashboard: React.FC = () => {
               <span className="text-5xl select-none">🔮</span>
             </div>
             <h3 className="text-2xl font-extrabold font-display bg-gradient-to-r from-white via-indigo-100 to-indigo-200 bg-clip-text text-transparent tracking-tight relative z-10">
-              Start Your Conversation
+              {t.startConversation}
             </h3>
             <p className="text-xs text-slate-500 max-w-[280px] mt-2.5 leading-relaxed font-semibold relative z-10">
-              Choose an active dialog from the sidebar, search for contacts, or browse the directory to message friends.
+              {t.chooseDialog}
             </p>
           </div>
         )}

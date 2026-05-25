@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 import { Mail, Lock, User } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 
@@ -9,6 +10,8 @@ interface RegisterProps {
 
 export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
   const { login } = useAuth();
+  const { t, lang, setLang } = usePreferences();
+
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
@@ -18,12 +21,12 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !nickname || !password) {
-      setError('Please fill in all fields 🔍');
+      setError(lang === 'ru' ? 'Пожалуйста, заполните все поля 🔍' : 'Please fill in all fields 🔍');
       return;
     }
 
     if (nickname.length < 3) {
-      setError('Nickname must be at least 3 characters 📛');
+      setError(lang === 'ru' ? 'Никнейм должен содержать минимум 3 символа 📛' : 'Nickname must be at least 3 characters 📛');
       return;
     }
 
@@ -42,12 +45,12 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed ❌');
+        throw new Error(data.error || (lang === 'ru' ? 'Ошибка во время регистрации ❌' : 'Registration failed ❌'));
       }
 
       login(data.token, data.user);
     } catch (err: any) {
-      setError(err.message || 'Something went wrong ⚡');
+      setError(err.message || (lang === 'ru' ? 'Что-то пошло не так ⚡' : 'Something went wrong ⚡'));
     } finally {
       setLoading(false);
     }
@@ -56,6 +59,26 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#05060b] px-4 relative overflow-hidden">
       <ParticleBackground />
+
+      {/* Floating Language Bar Selector */}
+      <div className="absolute top-6 right-6 z-20 flex gap-1.5 bg-[#0e1220]/75 border border-white/5 p-1 rounded-xl backdrop-blur-md select-none">
+        <button
+          onClick={() => setLang('ru')}
+          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+            lang === 'ru' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          RU
+        </button>
+        <button
+          onClick={() => setLang('en')}
+          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+            lang === 'en' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          EN
+        </button>
+      </div>
 
       {/* Dynamic Animated Background Circles */}
       <div className="absolute top-10 left-10 w-[450px] h-[450px] rounded-full bg-gradient-to-tr from-indigo-600/10 to-violet-600/10 blur-[100px] animate-pulse" style={{ animationDuration: '8s' }} />
@@ -72,10 +95,10 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
             <span className="text-3xl select-none">💬</span>
           </div>
           <h2 className="text-3xl font-extrabold font-display bg-gradient-to-r from-white via-indigo-100 to-indigo-200 bg-clip-text text-transparent tracking-tight text-center">
-            Create Account
+            {t.registerTitle}
           </h2>
           <p className="text-xs text-slate-400 font-medium mt-2 flex items-center gap-1.5">
-            Join Web Messenger today ✨
+            {t.registerSubtitle}
           </p>
         </div>
 
@@ -88,7 +111,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
-              Email Address
+              {t.emailLabel}
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
@@ -98,7 +121,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-sm font-medium"
+                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
                 placeholder="hello@world.com"
                 required
               />
@@ -107,7 +130,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
 
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
-              Unique Nickname
+              {t.nicknameLabel}
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
@@ -117,7 +140,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-sm font-medium"
+                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
                 placeholder="username"
                 required
               />
@@ -126,7 +149,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
 
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
-              Password
+              {t.passwordLabel}
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
@@ -136,7 +159,7 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-sm font-medium"
+                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
                 placeholder="••••••••"
                 required
               />
@@ -146,13 +169,13 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2"
+            className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
-              <span>Creating account... 🔄</span>
+              <span>{t.creatingAccount}</span>
             ) : (
               <>
-                <span>Sign Up</span>
+                <span>{t.signUpBtn}</span>
                 <span className="text-base">✨</span>
               </>
             )}
@@ -160,12 +183,12 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
         </form>
 
         <div className="mt-8 text-center text-xs text-slate-500 border-t border-white/5 pt-6 font-medium">
-          Already have an account?{' '}
+          {t.alreadyHaveAccount}{' '}
           <button
             onClick={onNavigateToLogin}
-            className="text-indigo-400 font-bold hover:underline hover:text-indigo-300 transition-colors ml-1"
+            className="text-indigo-400 font-bold hover:underline hover:text-indigo-300 transition-colors ml-1 cursor-pointer"
           >
-            Sign In 👋
+            {t.signInBtn} 👋
           </button>
         </div>
       </div>

@@ -23,6 +23,7 @@ export const PRESET_AVATARS: Record<string, PresetAvatar> = {
   'avatar:alien': { emoji: '👽', gradient: 'from-purple-900 to-fuchsia-800' },
   'avatar:robot': { emoji: '🤖', gradient: 'from-slate-400 to-indigo-950' },
   'avatar:wizard': { emoji: '🧙', gradient: 'from-purple-800 to-indigo-900' },
+  'avatar:saved': { emoji: '📁', gradient: 'from-indigo-600 to-blue-500' },
 };
 
 export const Avatar: React.FC<AvatarProps> = ({ 

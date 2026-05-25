@@ -4,13 +4,16 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext'
 import { WebSocketProvider } from './context/WebSocketContext'
+import { PreferencesProvider } from './context/PreferencesContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <WebSocketProvider>
-        <App />
-      </WebSocketProvider>
+      <PreferencesProvider>
+        <WebSocketProvider>
+          <App />
+        </WebSocketProvider>
+      </PreferencesProvider>
     </AuthProvider>
   </StrictMode>,
 )

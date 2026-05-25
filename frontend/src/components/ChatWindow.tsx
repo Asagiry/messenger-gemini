@@ -2,8 +2,79 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { User } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
+import { usePreferences } from '../context/PreferencesContext';
 import { Avatar } from './Avatar';
-import { Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft, Search, X, ChevronDown } from 'lucide-react';
+import { 
+  Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft, Search, X, ChevronDown, 
+  Mic, Play, Pause, Phone, PhoneOff, MicOff, Volume2
+} from 'lucide-react';
+
+const STICKERS = [
+  { id: 'cat_hello', emoji: '🐱', label: 'Привет!' },
+  { id: 'dog_love', emoji: '🐶', label: 'Люблю!' },
+  { id: 'bear_hug', emoji: '🧸', label: 'Обнимаю' },
+  { id: 'fire_hot', emoji: '🔥', label: 'Мощь!' },
+  { id: 'party_dance', emoji: '🥳', label: 'Туса!' },
+  { id: 'brain_genius', emoji: '🧠', label: 'Гений!' },
+  { id: 'cool_glass', emoji: '😎', label: 'Крутой' },
+  { id: 'sleep_zz', emoji: '😴', label: 'Сплю...' },
+  { id: 'unicorn_magic', emoji: '🦄', label: 'Магия' },
+  { id: 'sad_cry', emoji: '😭', label: 'Рыдаю' },
+  { id: 'rocket_go', emoji: '🚀', label: 'Взлетаем!' },
+  { id: 'money_rich', emoji: '💸', label: 'Богач' }
+];
+
+let callAudioInterval: any = null;
+const playCallRingTone = (type: 'ring' | 'disconnect') => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    const ctx = new AudioContextClass();
+    
+    if (type === 'ring') {
+      const playTone = () => {
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.frequency.setValueAtTime(440, ctx.currentTime);
+        osc2.frequency.setValueAtTime(480, ctx.currentTime);
+        gain.gain.setValueAtTime(0.02, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+        
+        osc1.start();
+        osc2.start();
+        osc1.stop(ctx.currentTime + 1.2);
+        osc2.stop(ctx.currentTime + 1.2);
+      };
+      
+      playTone();
+      callAudioInterval = setInterval(playTone, 2000);
+      return () => {
+        clearInterval(callAudioInterval);
+        ctx.close();
+      };
+    } else {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      osc.frequency.setValueAtTime(240, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.02, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+      setTimeout(() => ctx.close(), 350);
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
+};
 
 interface Message {
   id: number;
@@ -25,7 +96,8 @@ interface ChatWindowProps {
 // ----------------------------------------------------
 // Programmatic Chime Synthesizer using Web Audio API
 // ----------------------------------------------------
-const playChimeSound = (type: 'sent' | 'received') => {
+const playChimeSound = (type: 'sent' | 'received', soundEnabled: boolean) => {
+  if (!soundEnabled) return;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
@@ -91,6 +163,7 @@ const parseReactions = (reactions: any) => {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, onBack }) => {
   const { user, token } = useAuth();
   const { sendJson, subscribe } = useWebSocket();
+  const { t, lang, soundEnabled, incrementStat, wallpaper } = usePreferences();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -108,6 +181,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
   // Emojis keyboard popup drawer
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Voice recording simulation state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingTimerRef = useRef<number | null>(null);
+
+  // Simulated Voice Message player state (messageId -> { playing, progress })
+  const [voicePlayback, setVoicePlayback] = useState<Record<number, { playing: boolean; progress: number }>>({});
+  const playbackTimersRef = useRef<Record<number, number>>({});
+
+  // Calling state
+  const [activeCallState, setActiveCallState] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
+  const [callDuration, setCallDuration] = useState(0);
+  const callTimerRef = useRef<number | null>(null);
+  const callRingCleanupRef = useRef<(() => void) | null>(null);
+
+  // Current tab in Emoji Drawer: 'emojis' | 'stickers'
+  const [drawerTab, setDrawerTab] = useState<'emojis' | 'stickers'>('emojis');
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -199,10 +290,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
         if (isScrolledUp) {
           setUnreadScrolledCount((prev) => prev + 1);
-          playChimeSound('received');
+          playChimeSound('received', soundEnabled);
         } else {
           setTimeout(scrollToBottom, 50);
-          playChimeSound('received');
+          playChimeSound('received', soundEnabled);
           sendJson({ type: 'read_messages', senderId: partner.id });
         }
       }
@@ -214,7 +305,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
         setMessages((prev) => [...prev, msg]);
         setOffset((o) => o + 1);
         setTimeout(scrollToBottom, 50);
-        playChimeSound('sent');
+        playChimeSound('sent', soundEnabled);
       }
     });
 
@@ -276,7 +367,160 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       unsubscribeRead();
       unsubscribeReact();
     };
-  }, [partner.id, user?.id]);
+  }, [partner.id, user?.id, soundEnabled]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      if (callRingCleanupRef.current) callRingCleanupRef.current();
+      Object.values(playbackTimersRef.current).forEach(clearInterval);
+    };
+  }, []);
+
+  // Voice recording simulation functions
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordingTime(0);
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingTime((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopAndSendVoice = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
+    const finalDuration = recordingTime || 1;
+    setIsRecording(false);
+    setRecordingTime(0);
+    
+    sendJson({
+      type: 'send_message',
+      receiverId: partner.id,
+      content: `[voice:${finalDuration}]`,
+    });
+    incrementStat('messages');
+  };
+
+  const cancelRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
+    setIsRecording(false);
+    setRecordingTime(0);
+  };
+
+  // Simulated voice note player functions
+  const toggleVoicePlayback = (messageId: number, duration: number) => {
+    setVoicePlayback((prev) => {
+      const current = prev[messageId] || { playing: false, progress: 0 };
+      const isPlaying = current.playing;
+
+      if (isPlaying) {
+        if (playbackTimersRef.current[messageId]) {
+          clearInterval(playbackTimersRef.current[messageId]);
+        }
+        return {
+          ...prev,
+          [messageId]: { ...current, playing: false }
+        };
+      } else {
+        if (playbackTimersRef.current[messageId]) {
+          clearInterval(playbackTimersRef.current[messageId]);
+        }
+
+        const interval = window.setInterval(() => {
+          setVoicePlayback((prevStates) => {
+            const state = prevStates[messageId] || { playing: true, progress: 0 };
+            const nextProgress = state.progress + (100 / (duration * 10));
+            
+            if (nextProgress >= 100) {
+              clearInterval(playbackTimersRef.current[messageId]);
+              return {
+                ...prevStates,
+                [messageId]: { playing: false, progress: 0 }
+              };
+            }
+
+            return {
+              ...prevStates,
+              [messageId]: { playing: true, progress: nextProgress }
+            };
+          });
+        }, 100);
+
+        playbackTimersRef.current[messageId] = interval;
+
+        return {
+          ...prev,
+          [messageId]: { playing: true, progress: current.progress >= 99 ? 0 : current.progress }
+        };
+      }
+    });
+  };
+
+  // Calling simulation functions
+  const startCall = () => {
+    setActiveCallState('calling');
+    setCallDuration(0);
+    
+    const cleanup = playCallRingTone('ring');
+    callRingCleanupRef.current = cleanup ? cleanup : null;
+
+    setTimeout(() => {
+      setActiveCallState((current) => {
+        if (current === 'calling') {
+          if (callRingCleanupRef.current) {
+            callRingCleanupRef.current();
+            callRingCleanupRef.current = null;
+          }
+          callTimerRef.current = window.setInterval(() => {
+            setCallDuration((prev) => prev + 1);
+          }, 1000);
+          return 'connected';
+        }
+        return current;
+      });
+    }, 3000);
+  };
+
+  const endCall = () => {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+    if (callRingCleanupRef.current) {
+      callRingCleanupRef.current();
+      callRingCleanupRef.current = null;
+    }
+
+    playCallRingTone('disconnect');
+    
+    const finalDuration = callDuration;
+    setActiveCallState('ended');
+
+    const formatDurationStr = (sec: number) => {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+    
+    sendJson({
+      type: 'send_message',
+      receiverId: partner.id,
+      content: lang === 'ru' 
+        ? `📞 Голосовой звонок завершен. Продолжительность: ${formatDurationStr(finalDuration)}` 
+        : `📞 Voice call ended. Duration: ${formatDurationStr(finalDuration)}`,
+    });
+    incrementStat('messages');
+
+    setTimeout(() => {
+      setActiveCallState('idle');
+      setCallDuration(0);
+    }, 1500);
+  };
 
   const handleScroll = () => {
     const container = containerRef.current;
@@ -324,6 +568,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     });
 
     setInputText('');
+    incrementStat('messages');
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -338,6 +583,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       messageId,
       emoji,
     });
+    incrementStat('reactions');
   };
 
   const handleStartEdit = (msg: Message) => {
@@ -398,16 +644,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               </div>
 
               <div className="min-w-0">
-                <h3 className="font-extrabold text-white text-sm leading-tight tracking-wide truncate">{partner.nickname}</h3>
+                <h3 className="font-extrabold text-white text-sm leading-tight tracking-wide truncate">
+                  {partner.id === user?.id ? t.savedMessages : partner.nickname}
+                </h3>
                 <p className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">
-                  {partner.presence_status === 'online' ? (
+                  {partner.id === user?.id ? (
+                    <span className="opacity-80">{t.savedMessagesSub}</span>
+                  ) : partner.presence_status === 'online' ? (
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
-                      online <span className="animate-ping w-1 h-1 bg-emerald-450 rounded-full" />
+                      {t.online} <span className="animate-ping w-1 h-1 bg-emerald-450 rounded-full" />
                     </span>
                   ) : (
                     <span className="opacity-80">
-                      offline
-                      {partner.last_seen && ` • last seen ${new Date(partner.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                      {t.offline}
+                      {partner.last_seen && ` • ${t.lastSeen} ${new Date(partner.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                     </span>
                   )}
                 </p>
@@ -420,7 +670,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
                 type="text"
                 value={chatSearchQuery}
                 onChange={(e) => setChatSearchQuery(e.target.value)}
-                placeholder="Search messages..."
+                placeholder={t.searchMessages}
                 className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none py-1 border-b border-indigo-500/30 focus:border-indigo-500/80"
                 autoFocus
               />
@@ -438,7 +688,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
         {/* Header Actions */}
         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-          {partner.bio && !showSearchInput && (
+          {partner.bio && !showSearchInput && partner.id !== user?.id && (
             <div className="hidden lg:block max-w-[200px] xl:max-w-[280px] text-right mr-2">
               <p className="text-[10px] text-slate-400 font-semibold line-clamp-1 italic text-indigo-200/80">
                 💬 "{partner.bio}"
@@ -446,6 +696,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             </div>
           )}
           
+          {partner.id !== user?.id && !showSearchInput && (
+            <button
+              onClick={startCall}
+              className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 hover:text-white hover:bg-emerald-500 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Start call"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => {
               if (showSearchInput) {
@@ -453,12 +713,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               }
               setShowSearchInput(!showSearchInput);
             }}
-            className={`p-2 rounded-xl border transition-all hover:scale-105 active:scale-95 ${
+            className={`p-2 rounded-xl border transition-all hover:scale-105 active:scale-95 cursor-pointer ${
               showSearchInput 
                 ? 'bg-indigo-650/20 border-indigo-500/35 text-indigo-300' 
                 : 'bg-white/2 border-white/5 text-slate-400 hover:text-white'
             }`}
-            title="Search messages"
+            title={t.searchMessages}
           >
             {showSearchInput ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
           </button>
@@ -469,7 +729,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-6 space-y-4 bg-gradient-to-b from-transparent via-[#060810]/20 to-[#060810]/50 relative"
+        className={`flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-6 space-y-4 bg-gradient-to-b from-transparent via-[#060810]/20 to-[#060810]/50 relative transition-all duration-300 ${
+          wallpaper === 'cyber' ? 'bg-grid-pattern' :
+          wallpaper === 'sunset' ? 'bg-sunset-pattern' :
+          wallpaper === 'midnight' ? 'bg-stars-pattern' :
+          wallpaper === 'emerald' ? 'bg-vines-pattern' : ''
+        }`}
       >
         {loadingMore && (
           <div className="flex justify-center py-2">
@@ -485,10 +750,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               <Sparkles className="w-7 h-7" />
             </div>
             <p className="text-sm font-extrabold text-slate-200 tracking-wide">
-              {chatSearchQuery ? 'No matching messages 🔍' : 'Start the conversation 👋'}
+              {chatSearchQuery ? t.noMatchingMsgs : t.emptyHistory}
             </p>
             <p className="text-xs text-slate-500 mt-1.5 max-w-[240px]">
-              {chatSearchQuery ? 'Try adjusting your keywords.' : `Say hello to ${partner.nickname} and make a connection!`}
+              {chatSearchQuery ? t.noMatchingMsgs : (partner.id === user?.id ? t.savedMessagesSub : t.sayHello)}
             </p>
           </div>
         )}
@@ -506,58 +771,171 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
               <div className="max-w-[85%] md:max-w-[68%] relative">
                 {/* Bubble content */}
-                <div
-                  className={`px-4 py-3 rounded-2xl text-[13px] md:text-[13.5px] leading-relaxed relative shadow-lg ${
-                    isMe
-                      ? 'bubble-sent text-white rounded-br-none'
-                      : 'bubble-received rounded-bl-none'
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap break-all pr-4 font-medium">{msg.content}</p>
-                  
-                  {/* Reactions list */}
-                  {msg.reactions && parseReactions(msg.reactions).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5 animate-emoji-pop justify-start select-none">
-                      {parseReactions(msg.reactions).map(({ emoji, count, users }) => {
-                        const hasReacted = users.includes(user?.nickname || '');
-                        return (
-                          <button
-                            key={emoji}
-                            onClick={() => handleReactMessage(msg.id, emoji)}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-bold border transition-all hover:scale-105 active:scale-95 ${
-                              hasReacted
-                                ? 'bg-white/20 border-white/40 text-white'
-                                : 'bg-black/25 border-white/5 text-slate-350 hover:bg-black/35'
-                            }`}
-                            title={`Reacted by: ${users.join(', ')}`}
-                          >
-                            <span>{emoji}</span>
-                            <span>{count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                {/* Bubble content */}
+                {(() => {
+                  const isSticker = msg.content.startsWith('[sticker:') && msg.content.endsWith(']');
+                  const isVoice = msg.content.startsWith('[voice:') && msg.content.endsWith(']');
 
-                  {/* Status, Date, Edited state */}
-                  <div className="flex items-center justify-end gap-1.5 mt-2 text-[9px] text-white/50 select-none font-bold">
-                    {msg.updated_at !== msg.created_at && (
-                      <span className="italic opacity-85 text-[8px] bg-white/10 px-1 py-0.5 rounded">edited</span>
-                    )}
-                    <span>{formatTime(msg.created_at)}</span>
-                    {isMe && (
-                      <span className="ml-1 text-[10px]">
-                        {msg.status === 'read' ? (
-                          <span className="text-emerald-300 font-extrabold">✓✓</span>
-                        ) : msg.status === 'delivered' ? (
-                          <span className="text-indigo-250 font-extrabold">✓✓</span>
-                        ) : (
-                          <span className="text-white/60">✓</span>
+                  if (isSticker) {
+                    const stickerId = msg.content.substring(9, msg.content.length - 1);
+                    const sticker = STICKERS.find((s) => s.id === stickerId) || { emoji: '✨', label: 'Стикер' };
+
+                    return (
+                      <div className="flex flex-col items-center justify-center p-2 animate-emoji-pop select-none">
+                        <span className="text-7xl transition-transform hover:scale-120 duration-200">{sticker.emoji}</span>
+                        <span className="text-[10px] text-slate-500 font-bold bg-white/5 border border-white/5 px-2 py-0.5 rounded-full mt-2">
+                          {sticker.label}
+                        </span>
+                        
+                        <div className="flex items-center justify-end gap-1.5 mt-2.5 text-[8.5px] text-slate-550 select-none font-bold">
+                          <span>{formatTime(msg.created_at)}</span>
+                          {isMe && (
+                            <span className="text-[10px]">
+                              {msg.status === 'read' ? (
+                                <span className="text-emerald-450">✓✓</span>
+                              ) : msg.status === 'delivered' ? (
+                                <span className="text-indigo-400">✓✓</span>
+                              ) : (
+                                <span className="text-slate-500">✓</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isVoice) {
+                    const duration = parseInt(msg.content.substring(7, msg.content.length - 1), 10) || 5;
+                    const pbState = voicePlayback[msg.id] || { playing: false, progress: 0 };
+                    
+                    const formatDurationStr = (sec: number) => {
+                      const m = Math.floor(sec / 60);
+                      const s = sec % 60;
+                      return `${m}:${s < 10 ? '0' : ''}${s}`;
+                    };
+
+                    const currentSeconds = Math.round((pbState.progress / 100) * duration);
+
+                    return (
+                      <div
+                        className={`px-4 py-3 rounded-2xl text-[13px] md:text-[13.5px] leading-relaxed relative shadow-lg ${
+                          isMe
+                            ? 'bubble-sent text-white rounded-br-none'
+                            : 'bubble-received rounded-bl-none'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 pr-2.5 min-w-[200px] md:min-w-[230px]">
+                          <button
+                            type="button"
+                            onClick={() => toggleVoicePlayback(msg.id, duration)}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-md shrink-0 cursor-pointer ${
+                              isMe ? 'bg-white text-[#6366f1]' : 'bg-[#6366f1] text-white'
+                            }`}
+                          >
+                            {pbState.playing ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                          </button>
+
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1 h-7">
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((bar) => {
+                                const barProgress = bar * 10;
+                                const isActive = pbState.progress >= barProgress;
+                                const activeClass = isActive 
+                                  ? (isMe ? 'bg-white' : 'bg-indigo-400') 
+                                  : (isMe ? 'bg-white/35' : 'bg-slate-700');
+                                
+                                return (
+                                  <span
+                                    key={bar}
+                                    className={`w-[3px] rounded-full transition-all ${activeClass} ${
+                                      pbState.playing && isActive ? `voice-wave-bar animate-wave-${(bar % 5) + 1}` : ''
+                                    }`}
+                                    style={{
+                                      height: `${10 + Math.sin(bar * 0.8) * 10}px`
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="flex justify-between items-center mt-1 text-[9px] font-bold opacity-75">
+                              <span>{pbState.playing ? formatDurationStr(currentSeconds) : t.voiceMessage}</span>
+                              <span>{formatDurationStr(duration)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 mt-2 text-[9px] text-white/50 select-none font-bold">
+                          <span>{formatTime(msg.created_at)}</span>
+                          {isMe && (
+                            <span className="ml-1 text-[10px]">
+                              {msg.status === 'read' ? (
+                                <span className="text-emerald-300 font-extrabold">✓✓</span>
+                              ) : msg.status === 'delivered' ? (
+                                <span className="text-indigo-250 font-extrabold">✓✓</span>
+                              ) : (
+                                <span className="text-white/60">✓</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      className={`px-4 py-3 rounded-2xl text-[13px] md:text-[13.5px] leading-relaxed relative shadow-lg ${
+                        isMe
+                          ? 'bubble-sent text-white rounded-br-none'
+                          : 'bubble-received rounded-bl-none'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap break-all pr-4 font-medium">{msg.content}</p>
+                      
+                      {msg.reactions && parseReactions(msg.reactions).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 animate-emoji-pop justify-start select-none">
+                          {parseReactions(msg.reactions).map(({ emoji, count, users }) => {
+                            const hasReacted = users.includes(user?.nickname || '');
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => handleReactMessage(msg.id, emoji)}
+                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-bold border transition-all hover:scale-105 active:scale-95 ${
+                                  hasReacted
+                                    ? 'bg-white/20 border-white/40 text-white'
+                                    : 'bg-black/25 border-white/5 text-slate-350 hover:bg-black/35'
+                                }`}
+                                title={`Reacted by: ${users.join(', ')}`}
+                              >
+                                <span>{emoji}</span>
+                                <span>{count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-1.5 mt-2 text-[9px] text-white/50 select-none font-bold">
+                        {msg.updated_at !== msg.created_at && (
+                          <span className="italic opacity-85 text-[8px] bg-white/10 px-1 py-0.5 rounded">{lang === 'ru' ? 'изменено' : 'edited'}</span>
                         )}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                        <span>{formatTime(msg.created_at)}</span>
+                        {isMe && (
+                          <span className="ml-1 text-[10px]">
+                            {msg.status === 'read' ? (
+                              <span className="text-emerald-300 font-extrabold">✓✓</span>
+                            ) : msg.status === 'delivered' ? (
+                              <span className="text-indigo-250 font-extrabold">✓✓</span>
+                            ) : (
+                              <span className="text-white/60">✓</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Hover actions & quick reactions */}
                 <div
@@ -587,7 +965,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
                   {isMe && (
                     <button
                       onClick={() => handleStartEdit(msg)}
-                      className="p-1.5 bg-slate-900/90 hover:bg-indigo-650 border border-white/5 rounded-lg text-slate-400 hover:text-white transition-all shadow-xl active:scale-90"
+                      className="p-1.5 bg-slate-900/90 hover:bg-indigo-650 border border-white/5 rounded-lg text-slate-400 hover:text-white transition-all shadow-xl active:scale-90 cursor-pointer"
                       title="Edit message"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -596,7 +974,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
                   <button
                     onClick={() => setDeleteConfirmMsgId(msg.id)}
-                    className="p-1.5 bg-slate-900/90 hover:bg-rose-900/40 border border-white/5 rounded-lg text-slate-400 hover:text-rose-450 transition-all shadow-xl active:scale-90"
+                    className="p-1.5 bg-slate-900/90 hover:bg-rose-900/40 border border-white/5 rounded-lg text-slate-400 hover:text-rose-450 transition-all shadow-xl active:scale-90 cursor-pointer"
                     title="Delete message"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -609,33 +987,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
                   <div className="w-full max-w-sm bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-slide-up">
                     <h4 className="text-sm font-extrabold text-white mb-2 flex items-center gap-2">
-                      <span>Delete message?</span>
+                      <span>{t.deleteMsg}</span>
                       <span>🗑️</span>
                     </h4>
                     <p className="text-xs text-slate-400 mb-5 leading-relaxed font-medium">
-                      {isMe
-                        ? 'Do you want to delete this message just for you, or for both of you?'
-                        : 'This message will be deleted only for your history.'}
+                      {isMe ? t.deleteConfirmText : (lang === 'ru' ? 'Это сообщение будет удалено только из вашей истории.' : 'This message will be deleted only for your history.')}
                     </p>
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => setDeleteConfirmMsgId(null)}
-                        className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all"
+                        className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all cursor-pointer"
                       >
-                        Cancel
+                        {t.cancel}
                       </button>
                       <button
                         onClick={() => handleDeleteMessage(msg.id, 'me')}
-                        className="px-4 py-2.5 text-xs font-bold rounded-xl border border-white/5 text-rose-400 hover:bg-rose-500/10 transition-all"
+                        className="px-4 py-2.5 text-xs font-bold rounded-xl border border-white/5 text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
                       >
-                        Delete for me
+                        {t.deleteForMe}
                       </button>
                       {isMe && (
                         <button
                           onClick={() => handleDeleteMessage(msg.id, 'both')}
-                          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:brightness-110 text-white transition-all shadow-md shadow-rose-600/15"
+                          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:brightness-110 text-white transition-all shadow-md shadow-rose-600/15 cursor-pointer"
                         >
-                          Delete for both
+                          {t.deleteForBoth}
                         </button>
                       )}
                     </div>
@@ -651,7 +1027,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           <div className="flex items-end gap-2.5 justify-start animate-pulse">
             <Avatar url={partner.avatar_url} name={partner.nickname} size="sm" />
             <div className="px-4 py-2.5 bg-[#121828]/80 border border-white/5 text-slate-400 rounded-2xl rounded-bl-none text-xs flex items-center gap-1.5 font-bold shadow-md">
-              <span>{partner.nickname} is writing</span>
+              <span>{partner.nickname} {t.writing}</span>
               <span className="flex gap-0.5 items-center justify-center mt-1">
                 <span className="w-1.5 h-1.5 bg-indigo-450 rounded-full typing-dot" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 bg-indigo-450 rounded-full typing-dot" style={{ animationDelay: '150ms' }} />
@@ -679,18 +1055,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
         </button>
       )}
 
-      {/* Edit message modal/overlay */}
+      {/* Edit message banner overlay */}
       {editingMessage && (
         <div className="absolute inset-x-0 bottom-0 bg-[#0e1220]/95 border-t border-white/5 p-4.5 backdrop-blur-md z-30 animate-slide-up">
           <div className="max-w-4xl mx-auto flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-1.5 text-xs text-indigo-400 font-extrabold">
-              <Edit3 className="w-3.5 h-3.5" /> <span>Editing Message ✏️</span>
+              <Edit3 className="w-3.5 h-3.5" /> <span>{t.editMsg}</span>
             </div>
             <button
               onClick={() => setEditingMessage(null)}
-              className="text-xs text-slate-400 hover:text-white font-bold"
+              className="text-xs text-slate-400 hover:text-white font-bold cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
           </div>
           <form onSubmit={handleSaveEdit} className="max-w-4xl mx-auto flex gap-2">
@@ -703,9 +1079,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             />
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10 active:scale-95"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10 active:scale-95 cursor-pointer"
             >
-              Save ✨
+              {t.save}
             </button>
           </form>
         </div>
@@ -713,83 +1089,221 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
       {/* Input container */}
       <div className="p-4 bg-[#0d111c]/60 border-t border-white/5 backdrop-blur-md relative z-10">
-        {/* Telegram-style Emoji Picker Popup */}
+        {/* Telegram-style Emoji / Sticker Picker Popup */}
         {showEmojiPicker && (
           <>
-            {/* Click-outside capture overlay */}
             <div 
               className="fixed inset-0 z-40 cursor-default" 
               onClick={() => setShowEmojiPicker(false)} 
             />
             
-            {/* Emoji drawer floating panel */}
             <div className="absolute bottom-[84px] right-4 z-50 w-72 bg-[#0e1220]/98 border border-white/10 rounded-2xl p-3 shadow-2xl backdrop-blur-xl animate-slide-up select-none">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Quick Emojis 🦄</span>
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 gap-2">
+                <div className="flex gap-1 bg-white/2 p-0.5 rounded-lg border border-white/5 select-none shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDrawerTab('emojis')}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                      drawerTab === 'emojis' ? 'bg-indigo-650 text-white' : 'text-slate-450 hover:text-slate-200'
+                    }`}
+                  >
+                    {t.emojis}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerTab('stickers')}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                      drawerTab === 'stickers' ? 'bg-indigo-650 text-white' : 'text-slate-450 hover:text-slate-200'
+                    }`}
+                  >
+                    {t.stickers}
+                  </button>
+                </div>
                 <button 
                   type="button" 
                   onClick={() => setShowEmojiPicker(false)}
-                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-1">
-                {[
-                  '👍', '❤️', '😂', '😮', '😢', '🔥', 
-                  '🎉', '💡', '🚀', '🔮', '✨', '🦄', 
-                  '👋', '💬', '💖', '👏', '🌟', '💯', 
-                  '👀', '⚡', '👑', '🥳', '🤩', '🧸', 
-                  '🍕', '🍺', '☕', '🎈', '🎨', '🎸', 
-                  '💻', '🤝', '💎', '🌈', '🍀', '❌'
-                ].map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => {
-                      setInputText((prev) => prev + emoji);
-                    }}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/2 hover:bg-white/10 border border-white/5 text-base transition-all active:scale-90 hover:scale-115"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+
+              {drawerTab === 'emojis' ? (
+                <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {[
+                    '👍', '❤️', '😂', '😮', '😢', '🔥', 
+                    '🎉', '💡', '🚀', '🔮', '✨', '🦄', 
+                    '👋', '💬', '💖', '👏', '🌟', '💯', 
+                    '👀', '⚡', '👑', '🥳', '🤩', '🧸', 
+                    '🍕', '🍺', '☕', '🎈', '🎨', '🎸', 
+                    '💻', '🤝', '💎', '🌈', '🍀', '❌'
+                  ].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        setInputText((prev) => prev + emoji);
+                      }}
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/2 hover:bg-white/10 border border-white/5 text-base transition-all active:scale-90 hover:scale-115 cursor-pointer"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                  {STICKERS.map((sticker) => (
+                    <button
+                      key={sticker.id}
+                      type="button"
+                      onClick={() => {
+                        sendJson({
+                          type: 'send_message',
+                          receiverId: partner.id,
+                          content: `[sticker:${sticker.id}]`,
+                        });
+                        incrementStat('messages');
+                        setShowEmojiPicker(false);
+                      }}
+                      className="h-14 flex flex-col items-center justify-center rounded-xl bg-white/2 hover:bg-white/10 border border-white/5 transition-all active:scale-90 hover:scale-110 p-1 cursor-pointer"
+                      title={sticker.label}
+                    >
+                      <span className="text-2xl select-none">{sticker.emoji}</span>
+                      <span className="text-[7.5px] text-slate-400 truncate w-full text-center mt-1 leading-none font-bold">
+                        {sticker.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
 
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-2">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={inputText}
-              onChange={handleInputChange}
-              placeholder={`Message ${partner.nickname}... 🦄`}
-              className="w-full glass-input rounded-2xl py-4 pl-4 pr-12 text-slate-200 placeholder-slate-500 focus:outline-none text-sm font-semibold shadow-inner"
-            />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-450 hover:text-white">
-              <button
-                type="button"
-                className={`p-1 transition-all rounded-lg ${
-                  showEmojiPicker ? 'bg-white/10 text-indigo-400' : 'hover:bg-white/5 text-slate-400'
-                }`}
-                title="Add emoji"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              >
-                <Smile className="w-5 h-5 cursor-pointer" />
-              </button>
+          {isRecording ? (
+            <div className="flex-1 flex items-center justify-between bg-rose-500/10 border border-rose-500/20 rounded-2xl py-3 px-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                <span className="text-rose-455 font-extrabold text-xs tracking-wider uppercase">{t.recording}</span>
+                <span className="text-white text-xs font-bold font-mono">
+                  {Math.floor(recordingTime / 60)}:{recordingTime % 60 < 10 ? '0' : ''}{recordingTime % 60}
+                </span>
+                
+                <div className="flex items-end gap-0.5 h-4 ml-1 select-none">
+                  <span className="voice-wave-bar animate-wave-1 h-3 text-rose-400" />
+                  <span className="voice-wave-bar animate-wave-2 h-4 text-rose-400" />
+                  <span className="voice-wave-bar animate-wave-3 h-2 text-rose-400" />
+                  <span className="voice-wave-bar animate-wave-4 h-3 text-rose-400" />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  className="px-3.5 py-1.5 text-[10px] font-bold rounded-lg border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={stopAndSendVoice}
+                  className="px-3.5 py-1.5 text-[10px] font-bold rounded-lg bg-rose-600 hover:brightness-110 text-white transition-all shadow-md cursor-pointer"
+                >
+                  {lang === 'ru' ? 'Отправить' : 'Send'}
+                </button>
+              </div>
             </div>
-          </div>
-          <button
-            type="submit"
-            disabled={!inputText.trim()}
-            className="p-4 bg-gradient-to-r from-indigo-500 to-indigo-650 hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white rounded-2xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.96] cursor-pointer"
-          >
-            <Send className="w-4.5 h-4.5" />
-          </button>
+          ) : (
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={inputText}
+                onChange={handleInputChange}
+                placeholder={`${partner.id === user?.id ? t.savedMessages : `${t.writing.split(' ')[0]} ${partner.nickname}...`}`}
+                className="w-full glass-input rounded-2xl py-4 pl-4 pr-12 text-slate-200 placeholder-slate-505 focus:outline-none text-sm font-semibold shadow-inner"
+              />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-450 hover:text-white">
+                <button
+                  type="button"
+                  className={`p-1 transition-all rounded-lg cursor-pointer ${
+                    showEmojiPicker ? 'bg-white/10 text-indigo-400' : 'hover:bg-white/5 text-slate-450'
+                  }`}
+                  title="Add emoji"
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                >
+                  <Smile className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isRecording && (
+            <>
+              {inputText.trim() ? (
+                <button
+                  type="submit"
+                  className="p-4 bg-gradient-to-r from-indigo-500 to-indigo-650 hover:brightness-110 text-white rounded-2xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.96] cursor-pointer"
+                >
+                  <Send className="w-4.5 h-4.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="p-4 bg-white/2 hover:bg-white/5 border border-white/5 text-indigo-400 hover:text-white rounded-2xl transition-all active:scale-[0.96] cursor-pointer"
+                  title="Record voice note"
+                >
+                  <Mic className="w-4.5 h-4.5" />
+                </button>
+              )}
+            </>
+          )}
         </form>
       </div>
+      {/* Calling Simulation Modal Overlay */}
+      {activeCallState !== 'idle' && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-slate-950/85 backdrop-blur-xl p-8 select-none animate-fade-in text-white">
+          <div className="text-center mt-12">
+            <h4 className="text-indigo-400 font-bold uppercase tracking-widest text-[11px] mb-2">{t.callTitle}</h4>
+            <h3 className="text-3xl font-extrabold tracking-wide">{partner.nickname}</h3>
+            <p className="text-xs text-slate-400 font-medium mt-2 animate-pulse">
+              {activeCallState === 'calling' && t.calling}
+              {activeCallState === 'connected' && `${lang === 'ru' ? 'Разговор:' : 'Active:'} ${Math.floor(callDuration / 60)}:${callDuration % 60 < 10 ? '0' : ''}${callDuration % 60}`}
+              {activeCallState === 'ended' && t.callEnded}
+            </p>
+          </div>
+
+          <div className="relative my-8 flex items-center justify-center">
+            <div className={`w-32 h-32 rounded-full absolute bg-indigo-500/10 blur-xl ${activeCallState === 'calling' ? 'scale-150 animate-ping' : ''}`} />
+            <div className={`w-36 h-36 rounded-full border border-indigo-500/15 flex items-center justify-center ${activeCallState === 'calling' ? 'call-ring-pulse' : ''}`}>
+              <Avatar url={partner.avatar_url} name={partner.nickname} size="xl" className="rounded-full shadow-2xl ring-4 ring-indigo-500/20" />
+            </div>
+          </div>
+
+          <div className="mb-12 flex flex-col items-center gap-6">
+            {activeCallState === 'connected' && (
+              <div className="flex gap-8 justify-center mb-2">
+                <button type="button" className="p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-350 transition-all hover:scale-105 active:scale-95 cursor-pointer">
+                  <MicOff className="w-5 h-5" />
+                </button>
+                <button type="button" className="p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-355 transition-all hover:scale-105 active:scale-95 cursor-pointer">
+                  <Volume2 className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            
+            <button
+              type="button"
+              onClick={endCall}
+              className="p-5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-full hover:brightness-110 shadow-2xl shadow-rose-600/35 transition-all hover:scale-110 active:scale-90 flex items-center justify-center cursor-pointer"
+            >
+              <PhoneOff className="w-6 h-6 rotate-135" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
