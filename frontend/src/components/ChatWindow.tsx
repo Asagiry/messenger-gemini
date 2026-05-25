@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { User } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
-import { Send, Edit3, Trash2, Sparkles, Smile } from 'lucide-react';
+import { Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft } from 'lucide-react';
 
 interface Message {
   id: number;
@@ -187,7 +187,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     };
   }, [partner.id, user?.id]);
 
-
   const handleScroll = () => {
     const container = containerRef.current;
     if (container && container.scrollTop <= 10 && !loadingMore && hasMore) {
@@ -265,42 +264,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950/40 relative">
+    <div className="flex flex-col h-full bg-[#05060b]/40 relative">
       {/* Chat header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-slate-900/80 border-b border-slate-800 backdrop-blur-md relative z-10">
+      <div className="flex items-center justify-between px-6 py-4 bg-[#0d111c]/80 border-b border-white/5 backdrop-blur-md relative z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl mr-1 transition-all"
+            className="md:hidden p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl mr-1 transition-all active:scale-95"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft className="w-4 h-4" />
           </button>
           
           <div className="relative">
             <img
               src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
               alt={partner.nickname}
-              className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-slate-800"
+              className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10 shadow-lg"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
               }}
             />
             <span
-              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                partner.presence_status === 'online' ? 'bg-emerald-500' : 'bg-slate-600'
+              className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0e1220] ${
+                partner.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
               }`}
             />
           </div>
 
           <div>
-            <h3 className="font-bold text-white text-sm leading-tight">{partner.nickname}</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="font-extrabold text-white text-sm leading-tight tracking-wide">{partner.nickname}</h3>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
               {partner.presence_status === 'online' ? (
-                <span className="text-emerald-400 font-medium">online</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  online <span className="animate-ping w-1 h-1 bg-emerald-450 rounded-full" />
+                </span>
               ) : (
-                <span>
+                <span className="opacity-80">
                   offline
                   {partner.last_seen && ` • last seen ${new Date(partner.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                 </span>
@@ -310,8 +309,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
         </div>
 
         {partner.bio && (
-          <div className="hidden lg:block max-w-xs text-right">
-            <p className="text-xs text-slate-400 line-clamp-1 italic">"{partner.bio}"</p>
+          <div className="hidden lg:block max-w-[280px] text-right">
+            <p className="text-[10px] text-slate-400 font-semibold line-clamp-1 italic text-indigo-200/80">
+              💬 "{partner.bio}"
+            </p>
           </div>
         )}
       </div>
@@ -320,21 +321,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-6 space-y-4"
+        className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-gradient-to-b from-transparent via-[#060810]/20 to-[#060810]/50"
       >
         {loadingMore && (
           <div className="flex justify-center py-2">
-            <span className="text-xs text-indigo-400 animate-pulse">Loading previous messages...</span>
+            <span className="text-[10px] font-bold text-indigo-400 animate-pulse tracking-wide">
+              Loading history... 🔍
+            </span>
           </div>
         )}
 
         {messages.length === 0 && !loadingMore && (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
-            <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-3xl mb-4 border border-indigo-500/20">
-              <Sparkles className="w-6 h-6" />
+            <div className="p-5 bg-indigo-500/10 text-indigo-400 rounded-3xl mb-4 border border-indigo-500/15 animate-float">
+              <Sparkles className="w-7 h-7" />
             </div>
-            <p className="text-sm font-semibold text-slate-300">No messages yet</p>
-            <p className="text-xs text-slate-500 mt-1">Start chatting to begin the conversation.</p>
+            <p className="text-sm font-extrabold text-slate-200 tracking-wide">Start the conversation 👋</p>
+            <p className="text-xs text-slate-500 mt-1.5 max-w-[240px]">Say hello to {partner.nickname} and make a connection!</p>
           </div>
         )}
 
@@ -343,44 +346,44 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           return (
             <div
               key={msg.id}
-              className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'} group`}
+              className={`flex items-end gap-2.5 ${isMe ? 'justify-end' : 'justify-start'} group animate-fade-in`}
             >
               {!isMe && (
                 <img
                   src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                   alt={partner.nickname}
-                  className="w-7 h-7 rounded-lg object-cover bg-slate-800 mb-1 border border-slate-800"
+                  className="w-8 h-8 rounded-xl object-cover bg-slate-800 border border-white/5 shadow-md"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
                   }}
                 />
               )}
 
-              <div className="max-w-[70%] relative">
+              <div className="max-w-[68%] relative">
                 {/* Bubble content */}
                 <div
-                  className={`px-4 py-3 rounded-2xl text-sm relative shadow-md ${
+                  className={`px-4.5 py-3 rounded-2xl text-[13.5px] leading-relaxed relative shadow-lg ${
                     isMe
-                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-br-none'
-                      : 'bg-slate-900 border border-slate-800/80 text-slate-200 rounded-bl-none'
+                      ? 'bubble-sent text-white rounded-br-none'
+                      : 'bg-[#121828]/85 border border-white/5 text-slate-200 rounded-bl-none'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-all pr-4">{msg.content}</p>
+                  <p className="whitespace-pre-wrap break-all pr-4 font-medium">{msg.content}</p>
                   
                   {/* Status, Date, Edited state */}
-                  <div className="flex items-center justify-end gap-1 mt-1.5 text-[9px] text-slate-300/60 select-none">
+                  <div className="flex items-center justify-end gap-1.5 mt-2 text-[9px] text-white/50 select-none font-bold">
                     {msg.updated_at !== msg.created_at && (
-                      <span className="italic mr-1 text-[8px]">edited</span>
+                      <span className="italic opacity-80 text-[8px] bg-white/10 px-1 py-0.5 rounded">edited</span>
                     )}
                     <span>{formatTime(msg.created_at)}</span>
                     {isMe && (
-                      <span className="ml-1">
+                      <span className="ml-1 text-[10px]">
                         {msg.status === 'read' ? (
-                          <span className="text-indigo-200 font-bold">✓✓</span>
+                          <span className="text-emerald-300 font-extrabold">✓✓</span>
                         ) : msg.status === 'delivered' ? (
-                          <span>✓✓</span>
+                          <span className="text-indigo-250 font-extrabold">✓✓</span>
                         ) : (
-                          <span>✓</span>
+                          <span className="text-white/60">✓</span>
                         )}
                       </span>
                     )}
@@ -389,14 +392,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
                 {/* Hover actions */}
                 <div
-                  className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 z-20 ${
-                    isMe ? 'right-full mr-2 flex-row-reverse' : 'left-full ml-2'
+                  className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1.5 px-2 z-20 ${
+                    isMe ? 'right-full mr-2.5 flex-row-reverse' : 'left-full ml-2.5'
                   }`}
                 >
                   {isMe && (
                     <button
                       onClick={() => handleStartEdit(msg)}
-                      className="p-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all shadow-lg"
+                      className="p-2 bg-slate-900/90 hover:bg-indigo-650 border border-white/5 rounded-xl text-slate-400 hover:text-white transition-all shadow-xl active:scale-90"
                       title="Edit message"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -405,7 +408,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
                   <button
                     onClick={() => setDeleteConfirmMsgId(msg.id)}
-                    className="p-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-all shadow-lg"
+                    className="p-2 bg-slate-900/90 hover:bg-rose-900/40 border border-white/5 rounded-xl text-slate-400 hover:text-rose-400 transition-all shadow-xl active:scale-90"
                     title="Delete message"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -415,31 +418,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
               {/* Message delete confirmation dialog */}
               {deleteConfirmMsgId === msg.id && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
-                  <div className="w-full max-w-sm bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl relative">
-                    <h4 className="text-sm font-bold text-white mb-2">Delete message?</h4>
-                    <p className="text-xs text-slate-400 mb-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+                  <div className="w-full max-w-sm bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-scale-up">
+                    <h4 className="text-sm font-extrabold text-white mb-2 flex items-center gap-2">
+                      <span>Delete message?</span>
+                      <span>🗑️</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mb-5 leading-relaxed font-medium">
                       {isMe
                         ? 'Do you want to delete this message just for you, or for both of you?'
-                        : 'This message will be deleted only for you.'}
+                        : 'This message will be deleted only for your history.'}
                     </p>
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => setDeleteConfirmMsgId(null)}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all"
+                        className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={() => handleDeleteMessage(msg.id, 'me')}
-                        className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-800 text-rose-400 hover:bg-rose-500/10 transition-all"
+                        className="px-4 py-2.5 text-xs font-bold rounded-xl border border-white/5 text-rose-400 hover:bg-rose-500/10 transition-all"
                       >
                         Delete for me
                       </button>
                       {isMe && (
                         <button
                           onClick={() => handleDeleteMessage(msg.id, 'both')}
-                          className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md shadow-rose-600/15"
+                          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:brightness-110 text-white transition-all shadow-md shadow-rose-600/15"
                         >
                           Delete for both
                         </button>
@@ -458,18 +464,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             <img
               src={partner.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
               alt={partner.nickname}
-              className="w-7 h-7 rounded-lg object-cover bg-slate-800 mb-1 border border-slate-800"
+              className="w-8 h-8 rounded-xl object-cover bg-slate-800 border border-white/5"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
               }}
             />
-            <div className="px-4 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl rounded-bl-none text-xs flex items-center gap-1.5">
-              <span>{partner.nickname} is typing</span>
+            <div className="px-4 py-2.5 bg-[#121828]/80 border border-white/5 text-slate-400 rounded-2xl rounded-bl-none text-xs flex items-center gap-1.5 font-bold shadow-md">
+              <span>{partner.nickname} is writing</span>
               <span className="flex gap-0.5 items-center justify-center mt-1">
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 bg-indigo-450 rounded-full typing-dot" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-indigo-450 rounded-full typing-dot" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-indigo-450 rounded-full typing-dot" style={{ animationDelay: '300ms' }} />
               </span>
+              <span className="text-xs select-none ml-0.5">✍️</span>
             </div>
           </div>
         )}
@@ -477,14 +484,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
       {/* Edit message modal/overlay */}
       {editingMessage && (
-        <div className="absolute inset-x-0 bottom-0 bg-slate-900/90 border-t border-slate-800 p-4 backdrop-blur-md z-30 animate-slide-up">
-          <div className="max-w-4xl mx-auto flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5 text-xs text-indigo-400 font-semibold">
-              <Edit3 className="w-3.5 h-3.5" /> Editing Message
+        <div className="absolute inset-x-0 bottom-0 bg-[#0e1220]/95 border-t border-white/5 p-4.5 backdrop-blur-md z-30 animate-slide-up">
+          <div className="max-w-4xl mx-auto flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-1.5 text-xs text-indigo-400 font-extrabold">
+              <Edit3 className="w-3.5 h-3.5" /> <span>Editing Message ✏️</span>
             </div>
             <button
               onClick={() => setEditingMessage(null)}
-              className="text-xs text-slate-400 hover:text-white"
+              className="text-xs text-slate-400 hover:text-white font-bold"
             >
               Cancel
             </button>
@@ -494,36 +501,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               type="text"
               value={editInputText}
               onChange={(e) => setEditInputText(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              className="flex-1 glass-input rounded-2xl px-4 py-3 text-slate-200 focus:outline-none text-sm font-medium"
               required
             />
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md shadow-indigo-600/10"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10 active:scale-95"
             >
-              Save
+              Save ✨
             </button>
           </form>
         </div>
       )}
 
       {/* Input container */}
-      <div className="p-4 bg-slate-900/60 border-t border-slate-850/60 backdrop-blur-md relative z-10">
+      <div className="p-4 bg-[#0d111c]/60 border-t border-white/5 backdrop-blur-md relative z-10">
         <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-2">
           <div className="relative flex-1">
             <input
               type="text"
               value={inputText}
               onChange={handleInputChange}
-              placeholder={`Message ${partner.nickname}...`}
-              className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-3.5 pl-4 pr-12 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm shadow-inner"
+              placeholder={`Message ${partner.nickname}... 🦄`}
+              className="w-full glass-input rounded-2xl py-4 pl-4 pr-12 text-slate-200 placeholder-slate-500 focus:outline-none text-sm font-semibold shadow-inner"
             />
-            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-500">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-slate-500">
               <button
                 type="button"
-                className="p-1 hover:text-slate-300 transition-colors"
-                title="Add emoji (standard keyboard)"
-                onClick={() => setInputText(prev => prev + '😊')}
+                className="p-1 hover:text-slate-350 transition-colors"
+                title="Add emoji"
+                onClick={() => setInputText(prev => prev + '✨')}
               >
                 <Smile className="w-5 h-5" />
               </button>
@@ -532,9 +539,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className="p-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:pointer-events-none text-white rounded-2xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+            className="p-4 bg-gradient-to-r from-indigo-500 to-indigo-650 hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white rounded-2xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.96]"
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-4.5 h-4.5" />
           </button>
         </form>
       </div>

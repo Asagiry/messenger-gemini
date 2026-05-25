@@ -19,7 +19,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname) {
-      setError('Nickname is required');
+      setError('Nickname is required 📛');
       return;
     }
 
@@ -40,7 +40,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update profile');
+        throw new Error(data.error || 'Failed to update profile ❌');
       }
 
       updateUser(data.user);
@@ -51,7 +51,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
       setPassword('');
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      setError(err.message || 'Something went wrong ⚡');
     } finally {
       setLoading(false);
     }
@@ -59,61 +59,65 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden relative">
+      <div className="w-full max-w-lg bg-[#0e1220]/90 border border-white/5 rounded-[28px] shadow-2xl overflow-hidden relative backdrop-blur-xl animate-slide-up">
+        {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-slate-850 hover:bg-slate-800 rounded-xl transition-all"
+          className="absolute top-5 right-5 p-2.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        <div className="p-6 border-b border-slate-800">
-          <h3 className="text-xl font-bold text-white">Edit Profile</h3>
-          <p className="text-xs text-slate-400 mt-1">Customize your public presence in Web Messenger</p>
+        <div className="p-6 border-b border-white/5 bg-white/2">
+          <h3 className="text-xl font-extrabold font-display text-white flex items-center gap-2">
+            <span>Edit Profile</span>
+            <span className="text-base">⚙️</span>
+          </h3>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Customize your public presence in Web Messenger</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm rounded-xl">
-              {error}
+            <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-450 text-xs rounded-2xl flex items-center gap-2">
+              <span>⚠️</span> {error}
             </div>
           )}
 
           {success && (
-            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center gap-2 rounded-xl">
-              <Check className="w-4 h-4" /> Profile updated successfully!
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2 rounded-2xl animate-pulse">
+              <Check className="w-4 h-4" /> Profile updated successfully! 🎉
             </div>
           )}
 
           {/* Profile Picture Preview */}
-          <div className="flex items-center gap-4 bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40">
+          <div className="flex items-center gap-4 bg-white/2 p-4 rounded-2xl border border-white/5 shadow-inner">
             <img
               src={avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
               alt={nickname}
-              className="w-16 h-16 rounded-2xl object-cover bg-slate-800 border border-slate-700 shadow-inner"
+              className="w-16 h-16 rounded-[20px] object-cover bg-slate-800 border border-white/10 shadow-lg shadow-black/30"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
               }}
             />
             <div>
-              <h4 className="text-sm font-semibold text-white">Avatar Preview</h4>
-              <p className="text-xs text-slate-500 mt-1">Changes are live after saving</p>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Avatar Preview</h4>
+              <p className="text-[10px] text-slate-500 mt-1 font-medium">Changes apply immediately on saving</p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
               Nickname
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                 <User className="w-4 h-4" />
               </span>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
+                className="w-full glass-input rounded-2xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-sm font-medium"
                 placeholder="nickname"
                 required
               />
@@ -121,73 +125,73 @@ export const UserProfile: React.FC<UserProfileProps> = ({ onClose }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
               Avatar Image URL
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                 <Image className="w-4 h-4" />
               </span>
               <input
                 type="url"
                 value={avatarUrl}
                 onChange={(e) => setAvatarUrl(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
+                className="w-full glass-input rounded-2xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
                 placeholder="https://example.com/avatar.jpg"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
               Bio
             </label>
             <div className="relative">
-              <span className="absolute top-3 left-3 text-slate-500">
+              <span className="absolute top-3 left-3.5 text-slate-500">
                 <FileText className="w-4 h-4" />
               </span>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 rows={3}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm resize-none"
+                className="w-full glass-input rounded-2xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium resize-none"
                 placeholder="Tell us about yourself..."
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
               Change Password (optional)
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                 <Lock className="w-4 h-4" />
               </span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-sm"
+                className="w-full glass-input rounded-2xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
                 placeholder="Leave blank to keep current"
               />
             </div>
           </div>
 
-          <div className="flex gap-3 justify-end pt-4 border-t border-slate-800/60">
+          <div className="flex gap-3 justify-end pt-4 border-t border-white/5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 text-sm font-semibold transition-all"
+              className="px-5 py-3 rounded-2xl border border-white/5 text-slate-350 hover:bg-white/5 text-xs font-bold transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
+              className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-600/15 disabled:opacity-50"
             >
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Saving... 🔄' : 'Save Changes ✨'}
             </button>
           </div>
         </form>

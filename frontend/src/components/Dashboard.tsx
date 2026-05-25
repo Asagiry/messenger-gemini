@@ -257,8 +257,6 @@ export const Dashboard: React.FC = () => {
     };
   }, [activePartner?.id]);
 
-
-
   const handleSelectPartner = (partner: User) => {
     setActivePartner(partner);
     setSearchQuery('');
@@ -292,50 +290,52 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden relative">
+    <div className="flex h-screen w-full bg-[#05060b] text-slate-100 overflow-hidden relative">
       {/* Sidebar - list of chats & search */}
       <div
-        className={`w-full md:w-80 lg:w-96 flex flex-col bg-slate-900 border-r border-slate-800/80 transition-all ${
+        className={`w-full md:w-80 lg:w-[380px] flex flex-col bg-[#0b0e17] border-r border-white/5 transition-all ${
           activePartner ? 'hidden md:flex' : 'flex'
         }`}
       >
         {/* User bar */}
-        <div className="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-6 py-5 bg-[#0b0e17] border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
               src={user?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
               alt={user?.nickname}
-              className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-slate-800"
+              className="w-11 h-11 rounded-2xl object-cover bg-slate-800 border border-white/10 shadow-lg"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
               }}
             />
             <div>
-              <h4 className="font-bold text-sm text-white leading-tight">{user?.nickname}</h4>
-              <p className="text-[10px] text-slate-400 font-medium">Logged in</p>
+              <h4 className="font-extrabold text-sm text-white tracking-wide leading-tight">{user?.nickname}</h4>
+              <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
+                Active 👋
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setIsProfileOpen(true)}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
+              className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
               title="Edit Profile"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
             </button>
             <button
               onClick={logout}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+              className="p-2.5 text-slate-400 hover:text-rose-455 hover:bg-rose-500/10 rounded-xl transition-all"
               title="Logout"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Search bar */}
-        <div className="p-4 bg-slate-900 border-b border-slate-850/40">
+        <div className="p-4 bg-[#0b0e17] border-b border-white/2">
           <div className="relative">
             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
               <Search className="w-4 h-4" />
@@ -344,67 +344,67 @@ export const Dashboard: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users..."
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-xs"
+              placeholder="Search users... 🔎"
+              className="w-full glass-input rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none text-xs font-medium"
             />
           </div>
         </div>
 
         {/* Directory Toggle Button */}
-        <div className="px-4 py-2 border-b border-slate-850/30 flex gap-2">
+        <div className="px-4 py-2.5 border-b border-white/2 flex gap-2">
           <button
             onClick={() => {
               setShowDirectory(!showDirectory);
               setSearchQuery('');
             }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all active:scale-[0.98] ${
               showDirectory 
-                ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-400' 
-                : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-white'
+                ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-400 shadow-md shadow-indigo-650/5' 
+                : 'bg-white/2 border-white/5 text-slate-450 hover:text-white hover:bg-white/5'
             }`}
           >
             <Users className="w-4 h-4" />
-            {showDirectory ? 'Show Active Chats' : 'Show User Directory'}
+            <span>{showDirectory ? 'Show Active Chats' : 'Show User Directory'}</span>
           </button>
         </div>
 
         {/* Chats list / Directory / Search results */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {searchQuery.trim().length > 0 ? (
             // SEARCH RESULTS
-            <div className="p-2 space-y-1">
-              <h5 className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="space-y-1">
+              <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 Search Results ({searchResults.length})
               </h5>
               {searchResults.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-500">
-                  No users found matching "{searchQuery}"
+                <div className="p-6 text-center text-xs text-slate-500 font-medium">
+                  No users found matching "{searchQuery}" 😢
                 </div>
               ) : (
                 searchResults.map((u) => (
                   <button
                     key={u.id}
                     onClick={() => handleSelectPartner(u)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-slate-850 rounded-xl text-left transition-all"
+                    className="w-full flex items-center gap-3.5 p-3 hover:bg-white/5 rounded-2xl text-left border border-transparent transition-all active:scale-[0.99]"
                   >
                     <div className="relative">
                       <img
                         src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                         alt={u.nickname}
-                        className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-slate-800"
+                        className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
                         }}
                       />
                       <span
-                        className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
-                          u.presence_status === 'online' ? 'bg-emerald-500' : 'bg-slate-600'
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
+                          u.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
                         }`}
                       />
                     </div>
                     <div>
-                      <h4 className="font-bold text-sm text-white">{u.nickname}</h4>
-                      {u.bio && <p className="text-xs text-slate-400 line-clamp-1">{u.bio}</p>}
+                      <h4 className="font-extrabold text-sm text-white tracking-wide">{u.nickname}</h4>
+                      {u.bio && <p className="text-xs text-slate-400 truncate mt-0.5">{u.bio}</p>}
                     </div>
                   </button>
                 ))
@@ -412,42 +412,42 @@ export const Dashboard: React.FC = () => {
             </div>
           ) : showDirectory ? (
             // USER DIRECTORY
-            <div className="p-2 space-y-1">
-              <h5 className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="space-y-1">
+              <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 User Directory ({directory.length})
               </h5>
               {directory.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-500">
-                  No other users registered.
+                <div className="p-6 text-center text-xs text-slate-500 font-medium">
+                  No other users registered yet.
                 </div>
               ) : (
                 directory.map((u) => (
                   <button
                     key={u.id}
                     onClick={() => handleSelectPartner(u)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-slate-850 rounded-xl text-left transition-all"
+                    className="w-full flex items-center gap-3.5 p-3 hover:bg-white/5 rounded-2xl text-left border border-transparent transition-all active:scale-[0.99]"
                   >
                     <div className="relative">
                       <img
                         src={u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                         alt={u.nickname}
-                        className="w-10 h-10 rounded-xl object-cover bg-slate-850 border border-slate-850"
+                        className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-white/10"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
                         }}
                       />
                       <span
-                        className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
-                          u.presence_status === 'online' ? 'bg-emerald-500' : 'bg-slate-600'
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
+                          u.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
                         }`}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-sm text-white truncate">{u.nickname}</h4>
+                      <h4 className="font-extrabold text-sm text-white truncate tracking-wide">{u.nickname}</h4>
                       {u.bio ? (
-                        <p className="text-xs text-slate-400 truncate">{u.bio}</p>
+                        <p className="text-xs text-slate-400 truncate mt-0.5 font-medium">{u.bio}</p>
                       ) : (
-                        <p className="text-xs text-slate-500 italic">No bio</p>
+                        <p className="text-xs text-slate-600 italic mt-0.5 font-medium">No biography</p>
                       )}
                     </div>
                   </button>
@@ -456,25 +456,29 @@ export const Dashboard: React.FC = () => {
             </div>
           ) : (
             // ACTIVE CHATS LIST
-            <div className="p-2 space-y-1">
-              <h5 className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="space-y-1">
+              <h5 className="px-3.5 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 Recent Chats ({chats.length})
               </h5>
               {chats.length === 0 ? (
-                <div className="h-40 flex flex-col items-center justify-center p-6 text-center">
-                  <MessageSquare className="w-5 h-5 text-slate-600 mb-2" />
-                  <p className="text-xs text-slate-400">No active chats</p>
+                <div className="h-44 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="p-3 bg-white/2 rounded-full border border-white/5 text-slate-500 mb-3">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs text-slate-405 font-bold">No active chats 💬</p>
                   <button
                     onClick={() => setShowDirectory(true)}
-                    className="text-xs text-indigo-400 hover:underline mt-1 font-semibold"
+                    className="text-xs text-indigo-400 hover:underline mt-2 font-bold flex items-center gap-1.5"
                   >
-                    Open Directory
+                    Browse Directory ✨
                   </button>
                 </div>
               ) : (
                 chats.map((c) => {
                   const isTyping = typingStates[c.partner_id];
-                  const activeClass = activePartner?.id === c.partner_id ? 'bg-indigo-600/10 border-indigo-500/20 text-white' : 'hover:bg-slate-850/60 text-slate-300';
+                  const activeClass = activePartner?.id === c.partner_id 
+                    ? 'bg-gradient-to-r from-indigo-650/20 to-purple-650/15 border-indigo-500/25 text-white shadow-xl shadow-indigo-600/5' 
+                    : 'glass-card text-slate-300';
                   
                   return (
                     <button
@@ -488,48 +492,48 @@ export const Dashboard: React.FC = () => {
                           last_seen: c.last_seen || undefined,
                         })
                       }
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left border border-transparent transition-all ${activeClass}`}
+                      className={`w-full flex items-center gap-3.5 p-3 rounded-2xl text-left border transition-all active:scale-[0.99] ${activeClass}`}
                     >
                       <div className="relative flex-shrink-0">
                         <img
                           src={c.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                           alt={c.nickname}
-                          className="w-11 h-11 rounded-xl object-cover bg-slate-850 border border-slate-850"
+                          className="w-11 h-11 rounded-xl object-cover bg-slate-850 border border-white/5"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
                           }}
                         />
                         <span
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                            c.presence_status === 'online' ? 'bg-emerald-500' : 'bg-slate-600'
+                          className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[3px] border-[#0b0e17] ${
+                            c.presence_status === 'online' ? 'bg-emerald-500 presence-glow-online' : 'bg-slate-500'
                           }`}
                         />
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-bold text-sm text-white truncate leading-tight">{c.nickname}</h4>
-                          <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                          <h4 className="font-extrabold text-sm text-white truncate leading-tight tracking-wide">{c.nickname}</h4>
+                          <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
                             {formatLastMessageTime(c.last_message_time)}
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center justify-between mt-1.5">
                           {isTyping ? (
-                            <span className="text-xs text-indigo-400 font-medium animate-pulse">
-                              typing...
+                            <span className="text-xs text-indigo-400 font-extrabold animate-pulse flex items-center gap-1">
+                              typing... <span className="text-[10px]">✍️</span>
                             </span>
                           ) : (
-                            <p className="text-xs text-slate-400 truncate flex-1 pr-2">
+                            <p className="text-xs text-slate-400 truncate flex-1 pr-2 font-medium">
                               {c.last_message_sender_id === user?.id && (
-                                <span className="text-slate-500 mr-1">You:</span>
+                                <span className="text-slate-550 mr-1 font-bold">You:</span>
                               )}
                               {c.last_message_content}
                             </p>
                           )}
 
                           {c.unread_count > 0 && (
-                            <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center min-w-4 h-4 shadow-md shadow-indigo-600/20">
+                            <span className="bg-gradient-to-r from-indigo-500 to-purple-650 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center justify-center min-w-4.5 h-4.5 shadow-lg shadow-indigo-600/20">
                               {c.unread_count}
                             </span>
                           )}
@@ -545,7 +549,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Main chat window */}
-      <div className="flex-1 flex flex-col bg-slate-950">
+      <div className="flex-1 flex flex-col bg-[#05060b] relative">
         {activePartner ? (
           <ChatWindow
             partner={activePartner}
@@ -553,13 +557,18 @@ export const Dashboard: React.FC = () => {
             onBack={() => setActivePartner(null)}
           />
         ) : (
-          <div className="hidden md:flex flex-col items-center justify-center h-full text-center p-8 bg-slate-950/20">
-            <div className="p-5 bg-indigo-600/10 text-indigo-400 rounded-3xl mb-4 border border-indigo-500/20 shadow-inner">
-              <MessageSquare className="w-10 h-10" />
+          <div className="hidden md:flex flex-col items-center justify-center h-full text-center p-8 bg-[#05060b]/20 relative overflow-hidden">
+            {/* Background Blur Spheres */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+            
+            <div className="p-6 bg-gradient-to-tr from-indigo-500/10 to-purple-550/5 text-indigo-400 rounded-[32px] mb-5 border border-indigo-500/15 shadow-2xl animate-float relative z-10">
+              <span className="text-5xl select-none">🔮</span>
             </div>
-            <h3 className="text-xl font-bold text-white">Select a Chat</h3>
-            <p className="text-xs text-slate-500 max-w-sm mt-1.5 leading-relaxed">
-              Choose an active dialog from the sidebar, search for other users, or open the directory to start a new chat.
+            <h3 className="text-2xl font-extrabold font-display bg-gradient-to-r from-white via-indigo-100 to-indigo-200 bg-clip-text text-transparent tracking-tight relative z-10">
+              Start Your Conversation
+            </h3>
+            <p className="text-xs text-slate-500 max-w-[280px] mt-2.5 leading-relaxed font-semibold relative z-10">
+              Choose an active dialog from the sidebar, search for contacts, or browse the directory to message friends.
             </p>
           </div>
         )}
