@@ -106,6 +106,63 @@ export const Dashboard: React.FC = () => {
     }
   }, [searchQuery]);
 
+  function updateChatListSnippet(msg: any, isIncoming: boolean) {
+    const partnerId = isIncoming ? msg.sender_id : msg.receiver_id;
+    const isCurrentlyChatting = activePartner?.id === partnerId;
+
+    setChats((prev) => {
+      // Check if chat already exists in list
+      const existingChatIndex = prev.findIndex((c) => c.partner_id === partnerId);
+
+      let chatObj: Chat;
+
+      if (existingChatIndex > -1) {
+        const oldChat = prev[existingChatIndex];
+        chatObj = {
+          ...oldChat,
+          last_message_content: msg.content,
+          last_message_sender_id: msg.sender_id,
+          last_message_status: msg.status,
+          last_message_time: msg.created_at,
+          unread_count: isIncoming && !isCurrentlyChatting ? oldChat.unread_count + 1 : 0,
+        };
+      } else {
+        // Find partner details in directory
+        const partnerDetails = directory.find((u) => u.id === partnerId) || searchResults.find((u) => u.id === partnerId);
+        chatObj = {
+          partner_id: partnerId,
+          nickname: partnerDetails?.nickname || 'User',
+          avatar_url: partnerDetails?.avatar_url || '',
+          presence_status: partnerDetails?.presence_status || 'offline',
+          last_seen: partnerDetails?.last_seen || null,
+          last_message_content: msg.content,
+          last_message_sender_id: msg.sender_id,
+          last_message_status: msg.status,
+          last_message_time: msg.created_at,
+          unread_count: isIncoming && !isCurrentlyChatting ? 1 : 0,
+        };
+      }
+
+      // Filter out old instance and prepend the updated one
+      const remainingChats = prev.filter((c) => c.partner_id !== partnerId);
+      return [chatObj, ...remainingChats];
+    });
+  }
+
+  function updateChatSnippetOnly(msg: any) {
+    const partnerId = msg.sender_id === user?.id ? msg.receiver_id : msg.sender_id;
+    setChats((prev) =>
+      prev.map((c) =>
+        c.partner_id === partnerId
+          ? {
+              ...c,
+              last_message_content: msg.content,
+            }
+          : c
+      )
+    );
+  }
+
   // 2. Subscribe to WebSocket updates
   useEffect(() => {
     // Typing indicator
@@ -200,62 +257,7 @@ export const Dashboard: React.FC = () => {
     };
   }, [activePartner?.id]);
 
-  const updateChatListSnippet = (msg: any, isIncoming: boolean) => {
-    const partnerId = isIncoming ? msg.sender_id : msg.receiver_id;
-    const isCurrentlyChatting = activePartner?.id === partnerId;
 
-    setChats((prev) => {
-      // Check if chat already exists in list
-      const existingChatIndex = prev.findIndex((c) => c.partner_id === partnerId);
-
-      let chatObj: Chat;
-
-      if (existingChatIndex > -1) {
-        const oldChat = prev[existingChatIndex];
-        chatObj = {
-          ...oldChat,
-          last_message_content: msg.content,
-          last_message_sender_id: msg.sender_id,
-          last_message_status: msg.status,
-          last_message_time: msg.created_at,
-          unread_count: isIncoming && !isCurrentlyChatting ? oldChat.unread_count + 1 : 0,
-        };
-      } else {
-        // Find partner details in directory
-        const partnerDetails = directory.find((u) => u.id === partnerId) || searchResults.find((u) => u.id === partnerId);
-        chatObj = {
-          partner_id: partnerId,
-          nickname: partnerDetails?.nickname || 'User',
-          avatar_url: partnerDetails?.avatar_url || '',
-          presence_status: partnerDetails?.presence_status || 'offline',
-          last_seen: partnerDetails?.last_seen || null,
-          last_message_content: msg.content,
-          last_message_sender_id: msg.sender_id,
-          last_message_status: msg.status,
-          last_message_time: msg.created_at,
-          unread_count: isIncoming && !isCurrentlyChatting ? 1 : 0,
-        };
-      }
-
-      // Filter out old instance and prepend the updated one
-      const remainingChats = prev.filter((c) => c.partner_id !== partnerId);
-      return [chatObj, ...remainingChats];
-    });
-  };
-
-  const updateChatSnippetOnly = (msg: any) => {
-    const partnerId = msg.sender_id === user?.id ? msg.receiver_id : msg.sender_id;
-    setChats((prev) =>
-      prev.map((c) =>
-        c.partner_id === partnerId
-          ? {
-              ...c,
-              last_message_content: msg.content,
-            }
-          : c
-      )
-    );
-  };
 
   const handleSelectPartner = (partner: User) => {
     setActivePartner(partner);

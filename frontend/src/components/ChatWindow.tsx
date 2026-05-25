@@ -40,6 +40,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
 
   const LIMIT = 50;
 
+  function scrollToBottom() {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }
+
   // 1. Fetch initial message history
   const fetchMessages = async (initial = false) => {
     const currentOffset = initial ? 0 : offset;
@@ -181,11 +187,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     };
   }, [partner.id, user?.id]);
 
-  const scrollToBottom = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  };
 
   const handleScroll = () => {
     const container = containerRef.current;
