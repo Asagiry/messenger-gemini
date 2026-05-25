@@ -18,8 +18,8 @@ if ! grep -q "JWT_SECRET" .env; then
   echo "JWT_SECRET=super-secret-key-12345" >> .env
 fi
 
-# 4. Install backend dependencies
-echo "Installing backend dependencies..."
+# 4. Install backend dependencies & build
+echo "Installing backend dependencies & compiling..."
 cd backend
 npm install
 npm run build
@@ -28,11 +28,8 @@ npm run build
 echo "Running migrations and database seeding..."
 npm run db:init
 
-# 6. Install frontend dependencies and build
-echo "Installing frontend dependencies & building..."
-cd ../frontend
-npm install
-npm run build
+# 6. Skip frontend compilation (pre-built locally)
+echo "Frontend is pre-compiled and tracked in Git. Skipping frontend build on VM."
 
 # 7. Start/Restart application under PM2 on port 80
 echo "Configuring and restarting application under PM2..."
