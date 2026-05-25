@@ -354,7 +354,7 @@ app.get('/api/chats/:partnerId/messages', authenticateToken, async (req: Authent
 });
 
 // Serve frontend index.html for all other routes (single page app)
-app.get('(.*)', (req: Request, res: Response) => {
+app.get(/.*/, (req: Request, res: Response) => {
   res.sendFile(path.resolve(frontendBuildPath, 'index.html'));
 });
 
