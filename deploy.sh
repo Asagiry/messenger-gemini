@@ -26,7 +26,7 @@ npm run build
 
 echo "Ensuring uploads directory exists and has correct permissions..."
 mkdir -p uploads
-chmod 777 uploads
+sudo chmod 777 uploads || true
 
 # 5. Run migrations & seeding
 echo "Running migrations and database seeding..."
