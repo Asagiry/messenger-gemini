@@ -6,7 +6,7 @@ import { usePreferences } from '../context/PreferencesContext';
 import { Avatar } from './Avatar';
 import { 
   Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft, Search, X, ChevronDown, 
-  Mic, Play, Pause, Phone, PhoneOff, MicOff, Volume2, Download, Upload
+  Mic, Play, Pause, Download, Upload
 } from 'lucide-react';
 
 const STICKERS = [
@@ -24,57 +24,7 @@ const STICKERS = [
   { id: 'money_rich', emoji: '💸', label: 'Богач' }
 ];
 
-let callAudioInterval: any = null;
-const playCallRingTone = (type: 'ring' | 'disconnect') => {
-  try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return null;
-    const ctx = new AudioContextClass();
-    
-    if (type === 'ring') {
-      const playTone = () => {
-        const osc1 = ctx.createOscillator();
-        const osc2 = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc1.frequency.setValueAtTime(440, ctx.currentTime);
-        osc2.frequency.setValueAtTime(480, ctx.currentTime);
-        gain.gain.setValueAtTime(0.02, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-        
-        osc1.start();
-        osc2.start();
-        osc1.stop(ctx.currentTime + 1.2);
-        osc2.stop(ctx.currentTime + 1.2);
-      };
-      
-      playTone();
-      callAudioInterval = setInterval(playTone, 2000);
-      return () => {
-        clearInterval(callAudioInterval);
-        ctx.close();
-      };
-    } else {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(320, ctx.currentTime);
-      osc.frequency.setValueAtTime(240, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.02, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-      setTimeout(() => ctx.close(), 350);
-      return null;
-    }
-  } catch (e) {
-    return null;
-  }
-};
+
 
 interface Message {
   id: number;
@@ -191,11 +141,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
   const [voicePlayback, setVoicePlayback] = useState<Record<number, { playing: boolean; progress: number }>>({});
   const playbackTimersRef = useRef<Record<number, number>>({});
 
-  // Calling state
-  const [activeCallState, setActiveCallState] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
-  const [callDuration, setCallDuration] = useState(0);
-  const callTimerRef = useRef<number | null>(null);
-  const callRingCleanupRef = useRef<(() => void) | null>(null);
+
 
   // Current tab in Emoji Drawer: 'emojis' | 'stickers'
   const [drawerTab, setDrawerTab] = useState<'emojis' | 'stickers'>('emojis');
@@ -440,8 +386,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
   useEffect(() => {
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
-      if (callRingCleanupRef.current) callRingCleanupRef.current();
       Object.values(playbackTimersRef.current).forEach(clearInterval);
     };
   }, []);
@@ -528,66 +472,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
     });
   };
 
-  // Calling simulation functions
-  const startCall = () => {
-    setActiveCallState('calling');
-    setCallDuration(0);
-    
-    const cleanup = playCallRingTone('ring');
-    callRingCleanupRef.current = cleanup ? cleanup : null;
 
-    setTimeout(() => {
-      setActiveCallState((current) => {
-        if (current === 'calling') {
-          if (callRingCleanupRef.current) {
-            callRingCleanupRef.current();
-            callRingCleanupRef.current = null;
-          }
-          callTimerRef.current = window.setInterval(() => {
-            setCallDuration((prev) => prev + 1);
-          }, 1000);
-          return 'connected';
-        }
-        return current;
-      });
-    }, 3000);
-  };
-
-  const endCall = () => {
-    if (callTimerRef.current) {
-      clearInterval(callTimerRef.current);
-      callTimerRef.current = null;
-    }
-    if (callRingCleanupRef.current) {
-      callRingCleanupRef.current();
-      callRingCleanupRef.current = null;
-    }
-
-    playCallRingTone('disconnect');
-    
-    const finalDuration = callDuration;
-    setActiveCallState('ended');
-
-    const formatDurationStr = (sec: number) => {
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
-    };
-    
-    sendJson({
-      type: 'send_message',
-      receiverId: partner.id,
-      content: lang === 'ru' 
-        ? `📞 Голосовой звонок завершен. Продолжительность: ${formatDurationStr(finalDuration)}` 
-        : `📞 Voice call ended. Duration: ${formatDurationStr(finalDuration)}`,
-    });
-    incrementStat('messages');
-
-    setTimeout(() => {
-      setActiveCallState('idle');
-      setCallDuration(0);
-    }, 1500);
-  };
 
   const handleScroll = () => {
     const container = containerRef.current;
@@ -763,15 +648,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             </div>
           )}
           
-          {partner.id !== user?.id && !showSearchInput && (
-            <button
-              onClick={startCall}
-              className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 hover:text-white hover:bg-emerald-500 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              title="Start call"
-            >
-              <Phone className="w-4 h-4" />
-            </button>
-          )}
+
 
           {/* Export button */}
           {!showSearchInput && (
@@ -1351,48 +1228,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
           )}
         </form>
       </div>
-      {/* Calling Simulation Modal Overlay */}
-      {activeCallState !== 'idle' && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-slate-950/85 backdrop-blur-xl p-8 select-none animate-fade-in text-white">
-          <div className="text-center mt-12">
-            <h4 className="text-indigo-400 font-bold uppercase tracking-widest text-[11px] mb-2">{t.callTitle}</h4>
-            <h3 className="text-3xl font-extrabold tracking-wide">{partner.nickname}</h3>
-            <p className="text-xs text-slate-400 font-medium mt-2 animate-pulse">
-              {activeCallState === 'calling' && t.calling}
-              {activeCallState === 'connected' && `${lang === 'ru' ? 'Разговор:' : 'Active:'} ${Math.floor(callDuration / 60)}:${callDuration % 60 < 10 ? '0' : ''}${callDuration % 60}`}
-              {activeCallState === 'ended' && t.callEnded}
-            </p>
-          </div>
 
-          <div className="relative my-8 flex items-center justify-center">
-            <div className={`w-32 h-32 rounded-full absolute bg-indigo-500/10 blur-xl ${activeCallState === 'calling' ? 'scale-150 animate-ping' : ''}`} />
-            <div className={`w-36 h-36 rounded-full border border-indigo-500/15 flex items-center justify-center ${activeCallState === 'calling' ? 'call-ring-pulse' : ''}`}>
-              <Avatar url={partner.avatar_url} name={partner.nickname} size="xl" className="rounded-full shadow-2xl ring-4 ring-indigo-500/20" />
-            </div>
-          </div>
-
-          <div className="mb-12 flex flex-col items-center gap-6">
-            {activeCallState === 'connected' && (
-              <div className="flex gap-8 justify-center mb-2">
-                <button type="button" className="p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-350 transition-all hover:scale-105 active:scale-95 cursor-pointer">
-                  <MicOff className="w-5 h-5" />
-                </button>
-                <button type="button" className="p-4 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-355 transition-all hover:scale-105 active:scale-95 cursor-pointer">
-                  <Volume2 className="w-5 h-5" />
-                </button>
-              </div>
-            )}
-            
-            <button
-              type="button"
-              onClick={endCall}
-              className="p-5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-full hover:brightness-110 shadow-2xl shadow-rose-600/35 transition-all hover:scale-110 active:scale-90 flex items-center justify-center cursor-pointer"
-            >
-              <PhoneOff className="w-6 h-6 rotate-135" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Export Chat Modal */}
       {showExportModal && (
