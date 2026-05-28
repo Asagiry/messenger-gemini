@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT DEFAULT '',
   presence_status VARCHAR(20) DEFAULT 'offline',
   last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  recovery_token VARCHAR(255) DEFAULT NULL,
+  recovery_token_expires TIMESTAMP DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

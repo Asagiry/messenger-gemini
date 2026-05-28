@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePreferences } from '../context/PreferencesContext';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Key } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 
 interface LoginProps {
@@ -16,6 +16,15 @@ export const Login: React.FC<LoginProps> = ({ onNavigateToRegister }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Recovery Flow States
+  const [isForgotMode, setIsForgotMode] = useState(false);
+  const [recoveryStep, setRecoveryStep] = useState(1);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryToken, setRecoveryToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +52,89 @@ export const Login: React.FC<LoginProps> = ({ onNavigateToRegister }) => {
       }
 
       login(data.token, data.user);
+    } catch (err: any) {
+      setError(err.message || (lang === 'ru' ? 'Что-то пошло не так ⚡' : 'Something went wrong ⚡'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryEmail) {
+      setError(lang === 'ru' ? 'Пожалуйста, введите email 🔍' : 'Please enter your email 🔍');
+      return;
+    }
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: recoveryEmail }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || (lang === 'ru' ? 'Ошибка запроса восстановления ❌' : 'Failed to request recovery ❌'));
+      }
+
+      // Mock Simulation: Show user the token in a green banner
+      setMessage(lang === 'ru' 
+        ? `Токен восстановления: ${data.token} 🔑 (Скопируйте его для шага 2)` 
+        : `Recovery token: ${data.token} 🔑 (Copy it for step 2)`
+      );
+      setRecoveryToken(data.token);
+      setRecoveryStep(2);
+    } catch (err: any) {
+      setError(err.message || (lang === 'ru' ? 'Что-то пошло не так ⚡' : 'Something went wrong ⚡'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryToken || !newPassword || !confirmPassword) {
+      setError(lang === 'ru' ? 'Пожалуйста, заполните все поля 🔍' : 'Please fill in all fields 🔍');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(lang === 'ru' ? 'Пароли не совпадают ❌' : 'Passwords do not match ❌');
+      return;
+    }
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token: recoveryToken, newPassword }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || (lang === 'ru' ? 'Не удалось сбросить пароль ❌' : 'Failed to reset password ❌'));
+      }
+
+      setMessage(lang === 'ru' 
+        ? 'Пароль успешно изменен! Вы будете перенаправлены на вход... 🎉' 
+        : 'Password changed successfully! Redirecting to login... 🎉'
+      );
+      setTimeout(() => {
+        setIsForgotMode(false);
+        setRecoveryStep(1);
+        setEmail(recoveryEmail);
+        setPassword('');
+        setError('');
+        setMessage('');
+      }, 3000);
     } catch (err: any) {
       setError(err.message || (lang === 'ru' ? 'Что-то пошло не так ⚡' : 'Something went wrong ⚡'));
     } finally {
@@ -89,10 +181,10 @@ export const Login: React.FC<LoginProps> = ({ onNavigateToRegister }) => {
             <span className="text-3xl select-none">💬</span>
           </div>
           <h2 className="text-3xl font-extrabold font-display bg-gradient-to-r from-white via-indigo-100 to-indigo-200 bg-clip-text text-transparent tracking-tight text-center">
-            {lang === 'ru' ? 'Web Мессенджер' : 'Web Messenger'}
+            {isForgotMode ? t.recoveryTitle : (lang === 'ru' ? 'Web Мессенджер' : 'Web Messenger')}
           </h2>
-          <p className="text-xs text-slate-400 font-medium mt-2 flex items-center gap-1.5">
-            {t.loginSubtitle}
+          <p className="text-xs text-slate-400 font-medium mt-2 flex items-center gap-1.5 text-center justify-center">
+            {isForgotMode ? t.recoverySubtitle : t.loginSubtitle}
           </p>
         </div>
 
@@ -102,69 +194,206 @@ export const Login: React.FC<LoginProps> = ({ onNavigateToRegister }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
-              {t.emailLabel}
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
-                <Mail className="w-4 h-4" />
-              </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
-                placeholder="hello@world.com"
-                required
-              />
-            </div>
+        {message && (
+          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 text-xs rounded-2xl flex flex-col gap-1.5 animate-pulse">
+            <span className="font-bold flex items-center gap-1">✅ {lang === 'ru' ? 'Инфо' : 'Info'}</span>
+            <span className="break-all leading-normal">{message}</span>
           </div>
+        )}
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
-              {t.passwordLabel}
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
-                <Lock className="w-4 h-4" />
-              </span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {loading ? (
-              <span>{t.signingIn}</span>
+        {isForgotMode ? (
+          <form onSubmit={recoveryStep === 1 ? handleRequestToken : handleResetPassword} className="space-y-5">
+            {recoveryStep === 1 ? (
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+                  {t.emailLabel}
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <Mail className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="email"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium animate-fade-in"
+                    placeholder="hello@world.com"
+                    required
+                  />
+                </div>
+              </div>
             ) : (
-              <>
-                <span>{t.signInBtn}</span>
-                <span className="text-base">🚀</span>
-              </>
+              <div className="space-y-5 animate-fade-in">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+                    {t.resetTokenLabel}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                      <Key className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      value={recoveryToken}
+                      onChange={(e) => setRecoveryToken(e.target.value)}
+                      className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
+                      placeholder="recovery-token"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+                    {t.newPasswordLabel}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+                    {t.confirmPasswordLabel}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
-        </form>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loading ? (
+                <span>{lang === 'ru' ? 'Выполняется...' : 'Processing...'}</span>
+              ) : (
+                <>
+                  <span>{recoveryStep === 1 ? t.getRecoveryTokenBtn : t.resetPasswordBtn}</span>
+                  <span className="text-base">🚀</span>
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 pl-1">
+                {t.emailLabel}
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Mail className="w-4 h-4" />
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
+                  placeholder="hello@world.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2 pl-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {t.passwordLabel}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotMode(true);
+                    setRecoveryStep(1);
+                    setRecoveryEmail(email);
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="text-[10px] text-indigo-400 hover:underline hover:text-indigo-300 font-bold transition-colors cursor-pointer"
+                >
+                  {t.forgotPasswordLink}
+                </button>
+              </div>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                  <Lock className="w-4 h-4" />
+                </span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full glass-input rounded-2xl py-3.5 pl-11 pr-4 text-slate-200 placeholder-slate-650 focus:outline-none text-sm font-medium"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full shimmer-button bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-2xl shadow-xl shadow-indigo-650/20 transition-all disabled:opacity-50 disabled:pointer-events-none mt-4 text-sm tracking-wide flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loading ? (
+                <span>{t.signingIn}</span>
+              ) : (
+                <>
+                  <span>{t.signInBtn}</span>
+                  <span className="text-base">🚀</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         <div className="mt-8 text-center text-xs text-slate-500 border-t border-white/5 pt-6 font-medium">
-          {t.newToApp}{' '}
-          <button
-            onClick={onNavigateToRegister}
-            className="text-indigo-400 font-bold hover:underline hover:text-indigo-300 transition-colors ml-1 cursor-pointer"
-          >
-            {t.signUpBtn} ✨
-          </button>
+          {isForgotMode ? (
+            <button
+              onClick={() => {
+                setIsForgotMode(false);
+                setRecoveryStep(1);
+                setError('');
+                setMessage('');
+              }}
+              className="text-indigo-400 font-bold hover:underline hover:text-indigo-300 transition-colors cursor-pointer"
+            >
+              ← {t.backToLogin}
+            </button>
+          ) : (
+            <>
+              {t.newToApp}{' '}
+              <button
+                onClick={onNavigateToRegister}
+                className="text-indigo-400 font-bold hover:underline hover:text-indigo-300 transition-colors ml-1 cursor-pointer"
+              >
+                {t.signUpBtn} ✨
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

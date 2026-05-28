@@ -19,6 +19,14 @@ async function runMigrationAndSeed() {
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb;
     `);
 
+    // Ensure recovery token columns exist if users table was created in an older run
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_token VARCHAR(255) DEFAULT NULL;
+    `);
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_token_expires TIMESTAMP DEFAULT NULL;
+    `);
+
     // 2. Check if users already exist
     const { rows: existingUsers } = await pool.query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(existingUsers[0].count, 10);

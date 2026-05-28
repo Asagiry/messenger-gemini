@@ -5,6 +5,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { pool } from './db/index';
 
 const app = express();
@@ -13,9 +15,58 @@ const server = http.createServer(app);
 // Use standard JWT secret from environment or fallback
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-12345';
 
+// System Logger Helper
+const logFilePath = path.resolve(__dirname, '../../server.log');
+
+const writeLog = (event: string, details: any) => {
+  try {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] EVENT: ${event} | DETAILS: ${JSON.stringify(details)}\n`;
+    fs.appendFileSync(logFilePath, logMessage);
+  } catch (err) {
+    console.error('Failed to write to server.log:', err);
+  }
+};
+
+// Uploads directory configuration
+const uploadsDir = path.resolve(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Avatar download helper
+const downloadAvatar = async (url: string): Promise<string> => {
+  if (!url || !url.startsWith('http')) {
+    return url;
+  }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error status: ${response.status}`);
+    
+    const contentType = response.headers.get('content-type') || '';
+    let ext = 'jpg';
+    if (contentType.includes('image/png')) ext = 'png';
+    else if (contentType.includes('image/gif')) ext = 'gif';
+    else if (contentType.includes('image/webp')) ext = 'webp';
+    else if (contentType.includes('image/svg+xml')) ext = 'svg';
+
+    const filename = `avatar-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${ext}`;
+    const destPath = path.join(uploadsDir, filename);
+
+    const arrayBuffer = await response.arrayBuffer();
+    fs.writeFileSync(destPath, Buffer.from(arrayBuffer));
+
+    return `/uploads/${filename}`;
+  } catch (err) {
+    console.error('Failed to download avatar from', url, err);
+    return url;
+  }
+};
+
 // Middlewares
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(uploadsDir));
 
 // Serve static files from React build directory
 const frontendBuildPath = path.resolve(__dirname, '../../frontend/dist');
@@ -104,6 +155,7 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
   try {
     const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userRes.rows.length === 0) {
+      writeLog('LOGIN_FAILED', { email, reason: 'user not found', ip: req.ip });
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
@@ -111,11 +163,14 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
     const user = userRes.rows[0];
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch) {
+      writeLog('LOGIN_FAILED', { email, reason: 'incorrect password', ip: req.ip });
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
 
     const token = jwt.sign({ id: user.id, email: user.email, nickname: user.nickname }, JWT_SECRET, { expiresIn: '7d' });
+
+    writeLog('LOGIN_SUCCESS', { userId: user.id, email: user.email, ip: req.ip });
 
     res.json({
       token,
@@ -137,6 +192,81 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
 // Logout (just returns success, client destroys token)
 app.post('/api/auth/logout', (req: Request, res: Response) => {
   res.json({ message: 'Logged out successfully' });
+});
+
+// Forgot Password - request recovery token
+app.post('/api/auth/forgot-password', async (req: Request, res: Response): Promise<void> => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400).json({ error: 'Email is required' });
+    return;
+  }
+
+  try {
+    const userRes = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) {
+      res.status(404).json({ error: 'User with this email does not exist' });
+      return;
+    }
+
+    const userId = userRes.rows[0].id;
+    // Generate a secure recovery token
+    const recoveryToken = crypto.randomBytes(20).toString('hex');
+    // Expiry: 1 hour from now
+    const expires = new Date(Date.now() + 3600000);
+
+    await pool.query(
+      'UPDATE users SET recovery_token = $1, recovery_token_expires = $2 WHERE id = $3',
+      [recoveryToken, expires, userId]
+    );
+
+    writeLog('PASSWORD_RECOVERY_REQUEST', { email, token: recoveryToken });
+
+    res.json({ message: 'Recovery token generated successfully', token: recoveryToken });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Server error requesting password recovery' });
+  }
+});
+
+// Reset Password using recovery token
+app.post('/api/auth/reset-password', async (req: Request, res: Response): Promise<void> => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    res.status(400).json({ error: 'Token and new password are required' });
+    return;
+  }
+
+  try {
+    // Find user with valid and unexpired token
+    const userRes = await pool.query(
+      'SELECT id, email FROM users WHERE recovery_token = $1 AND recovery_token_expires > CURRENT_TIMESTAMP',
+      [token]
+    );
+
+    if (userRes.rows.length === 0) {
+      res.status(400).json({ error: 'Invalid or expired recovery token' });
+      return;
+    }
+
+    const user = userRes.rows[0];
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear recovery fields
+    await pool.query(
+      'UPDATE users SET password_hash = $1, recovery_token = NULL, recovery_token_expires = NULL WHERE id = $2',
+      [passwordHash, user.id]
+    );
+
+    writeLog('PASSWORD_RESET', { userId: user.id, email: user.email });
+
+    res.json({ message: 'Password reset successfully. You can now login.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Server error resetting password' });
+  }
 });
 
 // Get current profile
@@ -180,16 +310,23 @@ app.put('/api/profile/me', authenticateToken, async (req: AuthenticatedRequest, 
       return;
     }
 
+    // Intercept and download avatar locally if it's an external HTTP URL
+    let localAvatarUrl = avatar_url;
+    if (avatar_url && avatar_url.startsWith('http')) {
+      localAvatarUrl = await downloadAvatar(avatar_url);
+    }
+
     let queryStr = `
       UPDATE users 
       SET nickname = $1, avatar_url = $2, bio = $3
     `;
-    const queryParams: any[] = [nickname, avatar_url || '', bio || ''];
+    const queryParams: any[] = [nickname, localAvatarUrl || '', bio || ''];
 
     if (password) {
       const passwordHash = await bcrypt.hash(password, 10);
       queryStr += `, password_hash = $4 WHERE id = $5`;
       queryParams.push(passwordHash, req.user!.id);
+      writeLog('PASSWORD_UPDATE', { userId: req.user!.id, email: req.user!.email });
     } else {
       queryStr += ` WHERE id = $4`;
       queryParams.push(req.user!.id);
@@ -234,6 +371,8 @@ app.get('/api/users/search', authenticateToken, async (req: AuthenticatedRequest
   }
 
   try {
+    writeLog('USER_SEARCH', { userId: req.user!.id, query: queryStr });
+
     const usersRes = await pool.query(
       `SELECT id, nickname, avatar_url, bio, presence_status, last_seen 
        FROM users 

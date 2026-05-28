@@ -6,7 +6,7 @@ import { usePreferences } from '../context/PreferencesContext';
 import { Avatar } from './Avatar';
 import { 
   Send, Edit3, Trash2, Sparkles, Smile, ArrowLeft, Search, X, ChevronDown, 
-  Mic, Play, Pause, Phone, PhoneOff, MicOff, Volume2
+  Mic, Play, Pause, Phone, PhoneOff, MicOff, Volume2, Download, Upload
 } from 'lucide-react';
 
 const STICKERS = [
@@ -204,9 +204,76 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // Export/Import states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importString, setImportString] = useState('');
+  const [exportString, setExportString] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importSuccess, setImportSuccess] = useState('');
+  const [copyStatus, setCopyStatus] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const [isTypingState, setIsTypingState] = useState(false);
+
+  // Compute export string when modal opens
+  useEffect(() => {
+    if (showExportModal) {
+      try {
+        const jsonStr = JSON.stringify(messages);
+        const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+        setExportString(base64);
+      } catch (e) {
+        console.error('Failed to export chat:', e);
+        setExportString('');
+      }
+    }
+  }, [showExportModal, messages]);
+
+  const handleImportChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    setImportError('');
+    setImportSuccess('');
+
+    if (!importString.trim()) {
+      setImportError(lang === 'ru' ? 'Введите строку бэкапа 🔍' : 'Please enter a backup string 🔍');
+      return;
+    }
+
+    try {
+      const decodedJson = decodeURIComponent(escape(atob(importString.trim())));
+      const parsed = JSON.parse(decodedJson);
+
+      if (!Array.isArray(parsed)) {
+        throw new Error('Not an array');
+      }
+
+      for (const msg of parsed) {
+        if (
+          typeof msg !== 'object' || 
+          msg === null ||
+          typeof msg.content !== 'string' ||
+          typeof msg.sender_id !== 'number' ||
+          typeof msg.receiver_id !== 'number'
+        ) {
+          throw new Error('Invalid message structure');
+        }
+      }
+
+      setMessages(parsed);
+      setImportSuccess(t.importSuccess);
+      setImportString('');
+      
+      setTimeout(() => {
+        setShowImportModal(false);
+        setImportSuccess('');
+      }, 1500);
+
+    } catch (err) {
+      setImportError(t.importError);
+    }
+  };
 
   const LIMIT = 50;
 
@@ -703,6 +770,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
               title="Start call"
             >
               <Phone className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Export button */}
+          {!showSearchInput && (
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="p-2 rounded-xl bg-white/2 border border-white/5 text-slate-400 hover:text-white transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title={t.exportChat}
+            >
+              <Download className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Import button */}
+          {!showSearchInput && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="p-2 rounded-xl bg-white/2 border border-white/5 text-slate-400 hover:text-white transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title={t.importChat}
+            >
+              <Upload className="w-4 h-4" />
             </button>
           )}
 
@@ -1301,6 +1390,129 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ partner, typingStatus, o
             >
               <PhoneOff className="w-6 h-6 rotate-135" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Export Chat Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-slide-up">
+            <button
+              onClick={() => {
+                setShowExportModal(false);
+                setCopyStatus(false);
+              }}
+              className="absolute top-4 right-4 text-slate-450 hover:text-white p-1 rounded hover:bg-white/5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h4 className="text-sm font-extrabold text-white mb-2 flex items-center gap-2">
+              <span>{t.exportTitle}</span>
+              <span>📤</span>
+            </h4>
+            <p className="text-xs text-slate-400 mb-4 leading-relaxed font-medium">
+              {t.exportDesc}
+            </p>
+            <textarea
+              readOnly
+              value={exportString}
+              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              className="w-full h-32 bg-[#0a0d16] border border-white/5 rounded-xl p-3 text-xs text-indigo-200 focus:outline-none font-mono resize-none mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  setCopyStatus(false);
+                }}
+                className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all cursor-pointer"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(exportString);
+                  setCopyStatus(true);
+                  setTimeout(() => setCopyStatus(false), 2000);
+                }}
+                className="px-4 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                {copyStatus ? (
+                  <span>{lang === 'ru' ? 'Скопировано! 📋' : 'Copied! 📋'}</span>
+                ) : (
+                  <span>{lang === 'ru' ? 'Копировать 📋' : 'Copy 📋'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Chat Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#121624] border border-white/5 p-6 rounded-[24px] shadow-2xl relative animate-slide-up">
+            <button
+              onClick={() => {
+                setShowImportModal(false);
+                setImportError('');
+                setImportSuccess('');
+                setImportString('');
+              }}
+              className="absolute top-4 right-4 text-slate-450 hover:text-white p-1 rounded hover:bg-white/5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h4 className="text-sm font-extrabold text-white mb-2 flex items-center gap-2">
+              <span>{t.importTitle}</span>
+              <span>📥</span>
+            </h4>
+            <p className="text-xs text-slate-400 mb-4 leading-relaxed font-medium">
+              {t.importDesc}
+            </p>
+
+            {importError && (
+              <div className="mb-3 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-455 text-[11px] rounded-xl font-bold animate-pulse">
+                {importError}
+              </div>
+            )}
+
+            {importSuccess && (
+              <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-450 text-[11px] rounded-xl font-bold animate-pulse">
+                {importSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleImportChat}>
+              <textarea
+                value={importString}
+                onChange={(e) => setImportString(e.target.value)}
+                placeholder="ey..."
+                className="w-full h-32 bg-[#0a0d16] border border-white/5 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none font-mono resize-none mb-4 focus:border-indigo-500/30"
+                required
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportError('');
+                    setImportSuccess('');
+                    setImportString('');
+                  }}
+                  className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-750 transition-all cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md cursor-pointer"
+                >
+                  {lang === 'ru' ? 'Импортировать 🚀' : 'Import 🚀'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

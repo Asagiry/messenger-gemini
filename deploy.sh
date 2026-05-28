@@ -24,6 +24,10 @@ cd backend
 npm install
 npm run build
 
+echo "Ensuring uploads directory exists and has correct permissions..."
+mkdir -p uploads
+chmod 777 uploads
+
 # 5. Run migrations & seeding
 echo "Running migrations and database seeding..."
 npm run db:init

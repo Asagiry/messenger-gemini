@@ -11,14 +11,14 @@ This document outlines the strict technical specifications and requirements for 
 
 ## 2. Infrastructure & Server Access
 All connection parameters are stored in your `.env` file. Read it before starting.
-- `SSH_IP` — IP address of your target Ubuntu VM.
-- `SSH_USER` — username on the server (`base-ubuntu`).
-- `DATABASE_URL` — PostgreSQL connection string.
+- `SSH_IP` вЂ” IP address of your target Ubuntu VM.
+- `SSH_USER` вЂ” username on the server (`base-ubuntu`).
+- `DATABASE_URL` вЂ” PostgreSQL connection string.
 
 Use the SSH private key `./id_ed25519` for passwordless access:
 `ssh -i ./id_ed25519 base-ubuntu@$SSH_IP`
 
-⚠️ IMPORTANT: The VM is already pre-configured with Node.js (v18), npm, PostgreSQL (v16), and PM2. The database 'app' and the default 'postgres' user (password: 'postgres') are already created and fully configured. You do NOT need to install these system dependencies or configure database users — you can immediately proceed to running migrations and deploying your application.
+вљ пёЏ IMPORTANT: The VM is already pre-configured with Node.js (v18), npm, PostgreSQL (v16), and PM2. The database 'app' and the default 'postgres' user (password: 'postgres') are already created and fully configured. You do NOT need to install these system dependencies or configure database users вЂ” you can immediately proceed to running migrations and deploying your application.
 
 ## 3. Network & Server Port Binding
 - **Subdomain Configuration**: Use `http://gemini-messenger.voimaxgm.online` for any redirect configurations, CORS policies, client-side API URLs, and WebSocket handshakes.
@@ -40,8 +40,9 @@ Use the SSH private key `./id_ed25519` for passwordless access:
 - **Registration**: User sign-up (Email, password, unique Nickname).
 - **Login**: Authentication and session management (JWT or session tokens).
 - **Logout**: Logout button to invalidate sessions.
-- **Profile**: Ability to set an avatar via an image URL, change Nickname, update password, and write a bio.
+- **Profile**: Ability to change Nickname, update password, and write a bio. For avatars, users can specify an external image URL, and the server must download the image from that URL and store it locally in the public uploads directory.
 - **User Directory**: View public profiles of other registered users.
+- **Password Recovery**: Implement a "Forgot Password" flow where a user can enter their email to request a password reset, generating a temporary recovery token that allows them to update their password.
 
 ### 5.2. Search & Dialogs
 - Search for other users by partial nickname match.
@@ -55,6 +56,10 @@ Use the SSH private key `./id_ed25519` for passwordless access:
 - Live "user is typing..." indicator and presence status ("online / offline").
 - Edit sent messages.
 - Delete messages (option to delete "for me" or "for both").
+- **Chat History Export/Import**: Provide a feature to export the active conversation history as a base64-encoded serialized JSON string, and a form to import this string back to restore/view the messages.
+
+### 5.4. Server Logging
+- **System Logging**: The Express backend must automatically log all critical system events (such as failed/successful login attempts, password updates, and user search queries) to a local file named `server.log` in the project root.
 
 ## 6. Database Seeding
 Upon initialization, the database must be automatically seeded with:
@@ -77,4 +82,4 @@ Before writing any code, perform the following verification:
 
 Immediately after presenting the plan, proceed to coding and deployment.
 
-⚠️ **Definition of Done**: Do not stop or declare completion until the entire MVP is fully built, successfully deployed, and running under PM2 on port 80. The session is complete only when the app is fully online and reachable at `http://gemini-messenger.voimaxgm.online`.
+вљ пёЏ **Definition of Done**: Do not stop or declare completion until the entire MVP is fully built, successfully deployed, and running under PM2 on port 80. The session is complete only when the app is fully online and reachable at `http://gemini-messenger.voimaxgm.online`.
